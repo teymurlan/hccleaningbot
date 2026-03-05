@@ -14,11 +14,14 @@ const bot = new TelegramBot(token, { polling: true });
 
 let WEBAPP_URL = process.env.WEBAPP_URL || (process.env.APP_URL ? `${process.env.APP_URL}/app` : '');
 
-// Resilience: If APP_URL is internal or missing, use the known public URL for this environment
+// Resilience: Handle missing or internal URLs gracefully
 if (!WEBAPP_URL || WEBAPP_URL.includes('.internal')) {
-  const publicUrl = 'https://ais-dev-fofcufoeybku2uie3yyogz-194815082719.us-west2.run.app';
-  WEBAPP_URL = `${publicUrl}/app`;
-  console.warn(`WARNING: APP_URL was invalid (${process.env.APP_URL}). Using fallback: ${publicUrl}`);
+  // If we are on Railway, they often provide PUBLIC_DOMAIN, otherwise we wait for user to set APP_URL
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    WEBAPP_URL = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/app`;
+  } else if (!WEBAPP_URL) {
+    console.error('⚠️ ПРЕДУПРЕЖДЕНИЕ: Переменная APP_URL не настроена. WebApp может не открыться.');
+  }
 }
 const PHONE_PRETTY = process.env.PHONE_PRETTY || '+7 (999) 210-79-77';
 const CITY_LABEL = process.env.CITY_LABEL || 'Санкт-Петербург';
@@ -26,6 +29,17 @@ const CITY_LABEL = process.env.CITY_LABEL || 'Санкт-Петербург';
 // --- HELPERS ---
 
 const lastMessages = {}; // chat_id -> message_id
+
+async function deleteLastMessage(chatId) {
+  if (lastMessages[chatId]) {
+    try {
+      await bot.deleteMessage(chatId, lastMessages[chatId]);
+      delete lastMessages[chatId];
+    } catch (e) {
+      // Silently fail if cannot delete
+    }
+  }
+}
 
 async function renderScreen(chatId, text, keyboard, options = {}) {
   const opts = {
@@ -36,12 +50,14 @@ async function renderScreen(chatId, text, keyboard, options = {}) {
 
   try {
     if (lastMessages[chatId]) {
+      // Try to edit the last message to maintain a "single screen" feel
       await bot.editMessageText(text, {
         chat_id: chatId,
         message_id: lastMessages[chatId],
         ...opts
       }).catch(async (err) => {
-        // If edit fails (e.g. same content), send new
+        // If edit fails (e.g. content is same or message deleted), delete old and send new
+        await deleteLastMessage(chatId);
         const msg = await bot.sendMessage(chatId, text, opts);
         lastMessages[chatId] = msg.message_id;
       });
@@ -295,8 +311,45 @@ async function showAdminOrderDetails(chatId, orderId) {
 
 // --- BOT LOGIC ---
 
-bot.onText(/\/start/, (msg) => showMenu(msg.chat.id, msg.from.id));
-bot.onText(/\/menu/, (msg) => showMenu(msg.chat.id, msg.from.id));
+// Register bot commands for the Telegram UI menu
+bot.setMyCommands([
+  { command: 'start', description: 'Запустить бота / Главное меню' },
+  { command: 'menu', description: 'Главное меню' },
+  { command: 'profile', description: 'Мой профиль' },
+  { command: 'orders', description: 'Мои заказы' },
+  { command: 'calc', description: 'Калькулятор стоимости' },
+  { command: 'price', description: 'Прайс-лист' }
+]).catch(err => console.error('Error setting commands:', err));
+
+// Global message handler for cleanup and off-topic filtering
+bot.on('message', async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  const text = msg.text || '';
+
+  // 1. Always delete user's message to keep the chat clean (App-like feel)
+  try {
+    await bot.deleteMessage(chatId, msg.message_id);
+  } catch (e) {}
+
+  // 2. Handle commands
+  if (text.startsWith('/')) {
+    const cmd = text.split(' ')[0].toLowerCase();
+    if (cmd === '/start' || cmd === '/menu') return showMenu(chatId, userId);
+    if (cmd === '/profile') return showProfile(chatId, userId);
+    if (cmd === '/orders') return showMyOrders(chatId, userId);
+    if (cmd === '/calc') return showPrice(chatId, userId); // Or specific calc screen
+    if (cmd === '/price') return showPrice(chatId, userId);
+    
+    // Other commands like /find, /msg, /move are handled by bot.onText
+    return;
+  }
+
+  // 3. Handle off-topic (non-command text)
+  if (text && !text.startsWith('/')) {
+    return showMenu(chatId, userId);
+  }
+});
 
 bot.onText(/\/find (.+)/, (msg, match) => {
   if (!ADMIN_IDS.includes(msg.from.id.toString())) return;
@@ -306,14 +359,16 @@ bot.onText(/\/find (.+)/, (msg, match) => {
   );
 });
 
-bot.onText(/\/msg (\w+) (.+)/, (msg, match) => {
+bot.onText(/\/msg (\w+) (.+)/, async (msg, match) => {
   if (!ADMIN_IDS.includes(msg.from.id.toString())) return;
   const orderId = match[1];
   const text = match[2];
   const order = db.orders.find(o => o.id === orderId);
   if (order) {
-    bot.sendMessage(order.chat_id, `<b>💬 Сообщение от менеджера:</b>\n\n${text}`, { parse_mode: 'HTML' });
-    bot.sendMessage(msg.chat.id, `✅ Отправлено пользователю #${orderId}`);
+    // Send to user as a new screen or notification
+    await renderScreen(order.chat_id, `<b>💬 Сообщение от менеджера:</b>\n\n${text}`, tabBar(false));
+    // Confirm to admin
+    await renderScreen(msg.chat.id, `✅ Отправлено пользователю #${orderId}`, tabBar(true));
   }
 });
 
@@ -457,7 +512,8 @@ bot.on('callback_query', async (query) => {
       const order = db.orders.find(o => o.id === orderId);
       if (order) {
         order.status = newStatus;
-        bot.sendMessage(order.chat_id, `${getStatusEmoji(newStatus)} Статус вашего заказа #${orderId} изменен на: <b>${newStatus.toUpperCase()}</b>`, { parse_mode: 'HTML' });
+        // Notify user via single screen
+        await renderScreen(order.chat_id, `${getStatusEmoji(newStatus)} Статус вашего заказа #${orderId} изменен на: <b>${newStatus.toUpperCase()}</b>`, tabBar(false));
         showAdminOrderDetails(chatId, orderId);
       }
     }
@@ -485,14 +541,16 @@ bot.on('callback_query', async (query) => {
   }
 });
 
-bot.on('contact', (msg) => {
-  ADMIN_IDS.forEach(adminId => {
-    bot.sendMessage(adminId, `<b>📞 ЗАПРОС ЗВОНКА</b>\n\nОт: ${msg.from.first_name}\nТел: ${msg.contact.phone_number}`, { parse_mode: 'HTML' });
+bot.on('contact', async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  
+  ADMIN_IDS.forEach(async (adminId) => {
+    await renderScreen(adminId, `<b>📞 ЗАПРОС ЗВОНКА</b>\n\nОт: ${msg.from.first_name}\nТел: ${msg.contact.phone_number}`, [[{ text: '👤 Контакт', callback_data: 'ignore' }]]);
     bot.sendContact(adminId, msg.contact.phone_number, msg.from.first_name);
   });
-  bot.sendMessage(msg.chat.id, '✅ Спасибо! Менеджер свяжется с вами в ближайшее время.', {
-    reply_markup: { remove_keyboard: true }
-  });
+
+  await renderScreen(chatId, '✅ Спасибо! Менеджер свяжется с вами в ближайшее время.', tabBar(false));
 });
 
 // --- WATCHER FOR NEW ORDERS ---
@@ -500,22 +558,19 @@ let lastOrderCount = db.orders.length;
 setInterval(() => {
   if (db.orders.length > lastOrderCount) {
     const newOrders = db.orders.slice(lastOrderCount);
-    newOrders.forEach(o => {
-      // Send receipt to user
+    newOrders.forEach(async (o) => {
+      // Send receipt to user via single screen
       const text = `<b>🟡 Заявка #${o.id} принята!</b>\n\nМы свяжемся с вами для подтверждения в ближайшее время.\n\n📅 Дата: ${o.date} в ${o.time}\n📍 Адрес: ${o.address}\n💰 Цена: ${o.estimated_price} ₽`;
       const keyboard = [
         [{ text: '🔍 Открыть заявку', callback_data: `view_${o.id}` }],
         [{ text: '🏠 Главная', callback_data: 'menu' }]
       ];
-      bot.sendMessage(o.chat_id, text, { parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } });
+      await renderScreen(o.chat_id, text, keyboard);
 
       // Notify Admins
-      ADMIN_IDS.forEach(adminId => {
+      ADMIN_IDS.forEach(async (adminId) => {
         const adminText = `<b>🆕 НОВЫЙ ЗАКАЗ #${o.id}</b>\n\n👤 ${o.name}\n📞 ${o.phone}\n📍 ${o.address}\n📅 ${o.date} ${o.time}\n🧼 ${o.service} | ${o.area} м²\n💰 ${o.estimated_price} ₽`;
-        bot.sendMessage(adminId, adminText, { 
-          parse_mode: 'HTML', 
-          reply_markup: { inline_keyboard: [[{ text: '⚙️ Управление', callback_data: `admin_view_${o.id}` }]] } 
-        });
+        await renderScreen(adminId, adminText, [[{ text: '⚙️ Управление', callback_data: `admin_view_${o.id}` }]]);
       });
     });
     lastOrderCount = db.orders.length;
