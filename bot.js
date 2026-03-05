@@ -394,7 +394,7 @@ bot.on('callback_query', async (query) => {
     renderScreen(chatId, text, keyboard);
   }
   else if (data === 'areas') {
-    const text = `<b>📍 НАШИ РАЙОНЫ</b>\n\nМы работаем по всему <b>${CITY_LABEL}</b> и ближайшим пригородам:\n\n🏙 Центральный, Петроградский\n🌊 Приморский, Курортный\n🌳 Выборгский, Калининский\n🏗 Московский, Фрунзенский\n\n<i>Если вашего района нет в списке — напишите нам, мы постараемся помочь!</i>`;
+    const text = `<b>📍 НАШИ РАЙОНЫ</b>\n\nМы работаем по всему <b>Санкт-Петербургу</b> и всей <b>Ленинградской области</b>!\n\n🏙 <b>СПб:</b> Все районы города без исключения.\n🌲 <b>ЛО:</b> Выезд в область обговаривается индивидуально (зависит от удаленности).\n\n<i>Напишите нам адрес, и мы рассчитаем стоимость выезда!</i>`;
     const keyboard = [
       [{ text: '✍️ Написать менеджеру', url: `https://t.me/${process.env.TG_USERNAME}` }],
       [{ text: '🔙 Назад в меню', callback_data: 'menu' }],
@@ -478,8 +478,9 @@ bot.on('callback_query', async (query) => {
     const order = db.orders.find(o => o.id === orderId);
     if (order) {
       order.status = 'cancelled';
-      bot.sendMessage(chatId, `🔴 Заказ #${orderId} отменен.`);
-      showOrderDetails(chatId, orderId, userId);
+      await renderScreen(chatId, `🔴 Заказ #${orderId} отменен.`, tabBar(isAdmin));
+      // Optionally show details again after a short delay or just stay on confirmation
+      setTimeout(() => showOrderDetails(chatId, orderId, userId), 1500);
     }
   }
   
@@ -502,7 +503,8 @@ bot.on('callback_query', async (query) => {
     else if (data === 'admin_all') showAdminOrderList(chatId, '📋 ПОСЛЕДНИЕ 30 ЗАКАЗОВ', () => true);
     else if (data === 'admin_qc_list') showAdminOrderList(chatId, '🧼 QC СПИСОК', o => o.qc_required);
     else if (data === 'admin_export') {
-      bot.sendMessage(chatId, `📥 Ссылка на экспорт:\n${process.env.APP_URL}/export.csv?admin=${userId}`);
+      const exportUrl = `${process.env.APP_URL}/export.csv?admin=${userId}`;
+      await renderScreen(chatId, `📥 <b>ЭКСПОРТ ДАННЫХ</b>\n\nВаша ссылка на скачивание CSV (все заказы):\n\n<code style="word-break: break-all;">${exportUrl}</code>\n\n<i>Ссылка действительна только для администраторов.</i>`, [[{ text: '🔙 Назад', callback_data: 'admin_dashboard' }]]);
     }
     else if (data.startsWith('admin_view_')) showAdminOrderDetails(chatId, data.split('_')[2]);
     else if (data.startsWith('admin_status_')) {
@@ -532,11 +534,11 @@ bot.on('callback_query', async (query) => {
     }
     else if (data.startsWith('admin_msg_')) {
       const orderId = data.split('_')[2];
-      bot.sendMessage(chatId, `Чтобы отправить сообщение клиенту, используйте команду:\n<code>/msg ${orderId} Текст сообщения</code>`, { parse_mode: 'HTML' });
+      await renderScreen(chatId, `Чтобы отправить сообщение клиенту, используйте команду:\n\n<code>/msg ${orderId} Текст сообщения</code>\n\n<i>Ваше сообщение будет удалено сразу после отправки.</i>`, [[{ text: '🔙 Назад', callback_data: `admin_view_${orderId}` }]]);
     }
     else if (data.startsWith('admin_reschedule_')) {
       const orderId = data.split('_')[2];
-      bot.sendMessage(chatId, `Чтобы перенести заказ, используйте команду:\n<code>/move ${orderId} ГГГГ-ММ-ДД ЧЧ:ММ</code>`, { parse_mode: 'HTML' });
+      await renderScreen(chatId, `Чтобы перенести заказ, используйте команду:\n\n<code>/move ${orderId} ГГГГ-ММ-ДД ЧЧ:ММ</code>\n\n<i>Пример: /move ${orderId} 2024-05-20 10:00</i>`, [[{ text: '🔙 Назад', callback_data: `admin_view_${orderId}` }]]);
     }
   }
 });
