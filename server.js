@@ -95,6 +95,27 @@ const authMiddleware = (req, res, next) => {
 // Health check
 app.get('/health', (req, res) => res.send('OK'));
 
+// Root route - Redirect to bot or show landing
+app.get('/', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>${BRAND_NAME}</title>
+        <style>
+            body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #111827; color: white; }
+            .btn { background: #EAB308; color: #111827; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 20px; }
+        </style>
+    </head>
+    <body>
+        <h1>${BRAND_NAME} Server 2.0 is Running</h1>
+        <p>WebApp is available in Telegram Bot.</p>
+        <a href="https://t.me/${process.env.TG_USERNAME || ''}" class="btn">Открыть в Telegram</a>
+    </body>
+    </html>
+  `);
+});
+
 // Get limits for a date
 app.get('/api/limits', authMiddleware, (req, res) => {
   const date = req.query.date;
@@ -105,6 +126,15 @@ app.get('/api/limits', authMiddleware, (req, res) => {
     .reduce((sum, o) => sum + (parseInt(o.area) || 0), 0);
   
   res.json({ booked, left: Math.max(0, DAILY_LIMIT - booked) });
+});
+
+// Get order count for a date
+app.get('/api/orders-count', authMiddleware, (req, res) => {
+  const date = req.query.date;
+  if (!date) return res.json({ count: 0 });
+  
+  const count = db.orders.filter(o => o.date === date && o.status !== 'cancelled').length;
+  res.json({ count });
 });
 
 // Create order
@@ -311,7 +341,21 @@ app.get('/app', (req, res) => {
         .tab i { display: block; font-size: 20px; margin-bottom: 2px; }
 
         .price-tag { font-size: 24px; font-weight: 800; color: var(--primary); }
-        .limit-warning { background: #fff7ed; border: 1px solid #ffedd5; color: #9a3412; padding: 10px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+        .limit-warning { background: #fee2e2; border: 1px solid #fecaca; color: #991b1b; padding: 12px; border-radius: 12px; font-size: 13px; margin-bottom: 16px; font-weight: 500; }
+        .limit-ok { background: #dcfce7; border: 1px solid #bbf7d0; color: #166534; padding: 12px; border-radius: 12px; font-size: 13px; margin-bottom: 16px; }
+        
+        /* Premium Calendar Styling */
+        input[type="date"] {
+            position: relative;
+            padding-left: 40px;
+        }
+        input[type="date"]::before {
+            content: '📅';
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
     </style>
 </head>
 <body>
@@ -427,27 +471,27 @@ app.get('/app', (req, res) => {
 
                 <div id="form-step-3" style="display: none;">
                     <div class="card">
-                        <h3>Контакты</h3>
+                        <h3>Ваши данные</h3>
                         <div class="input-group">
-                            <label>Имя</label>
-                            <input type="text" name="name" required>
+                            <label>Ваше имя</label>
+                            <input type="text" name="name" placeholder="Иван Иванов" required>
                         </div>
                         <div class="input-group">
-                            <label>Телефон</label>
-                            <input type="tel" name="phone" placeholder="+7..." required>
+                            <label>Номер телефона</label>
+                            <input type="tel" name="phone" placeholder="+7 (999) 000-00-00" required>
                         </div>
                         <div class="input-group">
-                            <label>Комментарий (опционально)</label>
-                            <textarea name="comment" rows="2"></textarea>
+                            <label>Комментарий к заказу</label>
+                            <textarea name="comment" placeholder="Например: есть домашние животные, нужен пропуск на территорию..." rows="2"></textarea>
                         </div>
-                        <div class="input-group" style="display: flex; align-items: center; gap: 10px;">
+                        <div class="input-group" style="display: flex; align-items: center; gap: 10px; background: #f9fafb; padding: 12px; border-radius: 12px; border: 1px dashed var(--accent);">
                             <input type="checkbox" name="subscription" id="f-sub" style="width: 20px; height: 20px;">
-                            <label for="f-sub" style="margin: 0;">Оформить абонемент (-15%)</label>
+                            <label for="f-sub" style="margin: 0; color: var(--primary); font-weight: 600;">✨ Оформить абонемент (-15%)</label>
                         </div>
                     </div>
                     <div style="display: flex; gap: 12px;">
                         <button type="button" class="btn btn-secondary" onclick="nextStep(2)">← Назад</button>
-                        <button type="submit" class="btn btn-primary" id="submit-btn">Оформить заказ</button>
+                        <button type="submit" class="btn btn-primary" id="submit-btn" style="box-shadow: 0 4px 12px rgba(234, 179, 8, 0.3);">🚀 Забронировать уборку</button>
                     </div>
                 </div>
             </form>
@@ -550,15 +594,30 @@ app.get('/app', (req, res) => {
 
         async function checkLimits() {
             const date = document.getElementById('f-date').value;
+            if (!date) return;
+            
             const res = await fetch('/api/limits?date=' + date, {
                 headers: { 'x-tg-init-data': initData }
             });
             const data = await res.json();
             const info = document.getElementById('limit-info');
-            if (data.left < 50) {
-                info.innerHTML = '<div class="limit-warning">⚠️ На эту дату осталось мало мест (' + data.left + ' м²). Заявка может быть перенесена.</div>';
+            const submitBtn = document.getElementById('submit-btn');
+            
+            // Limit is 300 orders per day
+            // Note: In server.js we use area for limit, but user asked for "300 cleanings"
+            // Let's count orders instead of area for this specific request
+            const resOrders = await fetch('/api/orders-count?date=' + date, {
+                headers: { 'x-tg-init-data': initData }
+            });
+            const countData = await resOrders.json();
+            
+            if (countData.count >= 300) {
+                info.innerHTML = '<div class="limit-warning">❌ К сожалению, на этот день все места (300/300) заняты. Пожалуйста, выберите другую дату.</div>';
+                submitBtn.disabled = true;
             } else {
-                info.innerHTML = '';
+                const left = 300 - countData.count;
+                info.innerHTML = '<div class="limit-ok">✅ Дата доступна! Осталось мест: ' + left + '</div>';
+                submitBtn.disabled = false;
             }
         }
 
