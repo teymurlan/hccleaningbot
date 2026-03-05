@@ -120,10 +120,24 @@ app.post('/api/order', authMiddleware, (req, res) => {
     .reduce((sum, o) => sum + (parseInt(o.area) || 0), 0);
   const overlimit = (bookedOnDate + (parseInt(area) || 0)) > DAILY_LIMIT;
 
+  const calculatePrice = (service, area) => {
+    const a = parseInt(area) || 0;
+    if (service === 'Поддерживающая') {
+      if (a <= 60) return a * 130;
+      if (a <= 110) return a * 95;
+      return a * 85;
+    } else if (service === 'Генеральная' || service === 'После ремонта') {
+      if (a <= 60) return a * 320;
+      if (a <= 110) return a * 290;
+      return a * 230;
+    }
+    return a * 100;
+  };
+
   const newOrder = {
     id: orderId,
     user_id: req.tgUser.id,
-    chat_id: req.tgUser.id, // Usually same for direct bot usage
+    chat_id: req.tgUser.id,
     username: req.tgUser.username,
     created_at: new Date().toISOString(),
     status: 'pending',
@@ -139,7 +153,7 @@ app.post('/api/order', authMiddleware, (req, res) => {
     comment,
     subscription: !!subscription,
     subscription_months: subscription_months || 0,
-    estimated_price: estimatedPrice,
+    estimated_price: calculatePrice(service, area),
     overlimit,
     reminder_24h_sent: false,
     reminder_2h_sent: false,
@@ -515,15 +529,22 @@ app.get('/app', (req, res) => {
         }
 
         function calcPrice() {
-            const area = document.getElementById('f-area').value || 0;
+            const area = parseInt(document.getElementById('f-area').value) || 0;
             const service = document.getElementById('f-service').value;
-            const prices = {
-                'Поддерживающая': 80,
-                'Генеральная': 150,
-                'После ремонта': 250,
-                'Окна': 500 // Example for windows
-            };
-            const price = area * (prices[service] || 80);
+            let price = 0;
+            
+            if (service === 'Поддерживающая') {
+                if (area <= 60) price = area * 130;
+                else if (area <= 110) price = area * 95;
+                else price = area * 85;
+            } else if (service === 'Генеральная' || service === 'После ремонта') {
+                if (area <= 60) price = area * 320;
+                else if (area <= 110) price = area * 290;
+                else price = area * 230;
+            } else {
+                price = area * 500; // Окна
+            }
+            
             document.getElementById('est-price').innerText = price;
         }
 
