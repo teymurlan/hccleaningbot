@@ -12,10 +12,13 @@ dotenv.config();
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
-const WEBAPP_URL = process.env.WEBAPP_URL || (process.env.APP_URL ? `${process.env.APP_URL}/app` : '');
+let WEBAPP_URL = process.env.WEBAPP_URL || (process.env.APP_URL ? `${process.env.APP_URL}/app` : '');
 
-if (!WEBAPP_URL) {
-  console.error('CRITICAL ERROR: APP_URL or WEBAPP_URL is not set in environment variables!');
+// Resilience: If APP_URL is internal or missing, use the known public URL for this environment
+if (!WEBAPP_URL || WEBAPP_URL.includes('.internal')) {
+  const publicUrl = 'https://ais-dev-fofcufoeybku2uie3yyogz-194815082719.us-west2.run.app';
+  WEBAPP_URL = `${publicUrl}/app`;
+  console.warn(`WARNING: APP_URL was invalid (${process.env.APP_URL}). Using fallback: ${publicUrl}`);
 }
 const PHONE_PRETTY = process.env.PHONE_PRETTY || '+7 (999) 210-79-77';
 const CITY_LABEL = process.env.CITY_LABEL || 'Санкт-Петербург';
@@ -89,14 +92,29 @@ async function showMenu(chatId, userId) {
   const keyboard = [
     [{ text: '✨ Заказать уборку', web_app: { url: WEBAPP_URL } }],
     [
-      { text: '📍 Наши районы', callback_data: 'areas' },
+      { text: '💰 Прайс-лист', callback_data: 'price' },
       { text: '🧾 Калькулятор', callback_data: 'calc' }
     ],
-    [{ text: '💎 Абонементы', callback_data: 'subscriptions' }],
+    [
+      { text: '📍 Наши районы', callback_data: 'areas' },
+      { text: '💎 Абонементы', callback_data: 'subscriptions' }
+    ],
     [{ text: '💬 О нас / Контакты', callback_data: 'about' }],
     ...tabBar(isAdmin)
   ];
 
+  await renderScreen(chatId, text, keyboard);
+}
+
+async function showPrice(chatId, userId) {
+  const isAdmin = ADMIN_IDS.includes(userId.toString());
+  const text = `<b>💰 ПРАЙС-ЛИСТ</b>\n\n<b>🧹 Поддерживающая уборка:</b>\n• До 60 м²: <b>130 ₽/м²</b>\n• 70 - 110 м²: <b>95 ₽/м²</b>\n• От 110 м²: <b>85 ₽/м²</b>\n\n<b>🧼 Генеральная / 🏗 После ремонта:</b>\n• До 60 м²: <b>320 ₽/м²</b>\n• 60 - 110 м²: <b>290 ₽/м²</b>\n• От 110 м²: <b>230 ₽/м²</b>\n\n<i>* Минимальный заказ — 2500 ₽. Итоговая стоимость может быть скорректирована менеджером.</i>`;
+  
+  const keyboard = [
+    [{ text: '✨ Заказать уборку', web_app: { url: WEBAPP_URL } }],
+    [{ text: '🔙 Назад в меню', callback_data: 'menu' }],
+    ...tabBar(isAdmin)
+  ];
   await renderScreen(chatId, text, keyboard);
 }
 
@@ -126,22 +144,23 @@ async function showProfile(chatId, userId) {
 }
 
 async function showMyOrders(chatId, userId) {
-  const orders = db.orders.filter(o => o.user_id === userId).slice(0, 5);
+  const orders = db.orders.filter(o => o.user_id === userId).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 10);
   const isAdmin = ADMIN_IDS.includes(userId.toString());
   
-  let text = `<b>📦 Ваши последние заказы</b>\n\n`;
+  let text = `<b>📦 Ваши заказы</b>\n\nЗдесь отображаются ваши последние 10 заявок. Нажмите на заказ для деталей или отмены.\n\n`;
   
   const keyboard = [];
   if (orders.length === 0) {
-    text += `У вас пока нет заказов.`;
+    text += `У вас пока нет активных или завершенных заказов.`;
   } else {
     orders.forEach(o => {
-      text += `${getStatusEmoji(o.status)} #${o.id} — ${o.date}\n`;
+      text += `${getStatusEmoji(o.status)} #${o.id} — ${o.date} (${o.estimated_price} ₽)\n`;
       keyboard.push([{ text: `🔍 Детали #${o.id}`, callback_data: `view_${o.id}` }]);
     });
   }
 
   keyboard.push([{ text: '✨ Новый заказ', web_app: { url: WEBAPP_URL } }]);
+  keyboard.push([{ text: '🔙 Назад в меню', callback_data: 'menu' }]);
   keyboard.push(...tabBar(isAdmin));
 
   await renderScreen(chatId, text, keyboard);
@@ -153,25 +172,27 @@ async function showOrderDetails(chatId, orderId, userId) {
   
   const isAdmin = ADMIN_IDS.includes(userId.toString());
   
-  let text = `<b>📄 Заказ #${order.id}</b>\n`;
+  let text = `<b>📄 ДЕТАЛИ ЗАКАЗА #${order.id}</b>\n`;
   text += `Статус: ${getStatusEmoji(order.status)} <b>${order.status.toUpperCase()}</b>\n\n`;
   
-  text += `<b>📅 Детали:</b>\n`;
-  text += `• Услуга: ${order.service}\n`;
-  text += `• Объект: ${order.area} м², ${order.rooms} комн.\n`;
-  text += `• Время: ${order.date} в ${order.time}\n`;
+  text += `<b>📋 Информация:</b>\n`;
+  text += `• Услуга: <b>${order.service}</b>\n`;
+  text += `• Объект: ${order.premises} (${order.area} м²)\n`;
+  text += `• Дата: <b>${order.date}</b> в <b>${order.time}</b>\n`;
   text += `• Адрес: ${order.address}\n`;
-  text += `• Имя: ${order.name}\n`;
-  text += `• Тел: ${order.phone}\n`;
-  text += `• Цена: <b>${order.estimated_price} ₽</b>\n\n`;
+  text += `• Контакт: ${order.name} (${order.phone})\n\n`;
+  
+  text += `💰 <b>ПРИМЕРНАЯ СТОИМОСТЬ: ${order.estimated_price} ₽</b>\n`;
+  text += `<i>(Рассчитано по актуальному прайсу)</i>\n\n`;
 
-  if (order.comment) text += `💬 Коммент: ${order.comment}\n\n`;
+  if (order.comment) text += `💬 Комментарий: ${order.comment}\n\n`;
 
   const keyboard = [];
   if (order.status !== 'done' && order.status !== 'cancelled') {
     keyboard.push([{ text: '❌ Отменить заказ', callback_data: `cancel_${order.id}` }]);
   }
-  keyboard.push([{ text: '🔁 Повторить заказ', web_app: { url: `${WEBAPP_URL}?service=${encodeURIComponent(order.service)}&area=${order.area}` } }]);
+  keyboard.push([{ text: '🔁 Повторить (в приложении)', web_app: { url: `${WEBAPP_URL}?service=${encodeURIComponent(order.service)}&area=${order.area}` } }]);
+  keyboard.push([{ text: '🔙 К списку заказов', callback_data: 'my_orders' }]);
   keyboard.push(...tabBar(isAdmin));
 
   await renderScreen(chatId, text, keyboard);
@@ -305,6 +326,7 @@ bot.on('callback_query', async (query) => {
   bot.answerCallbackQuery(query.id);
 
   if (data === 'menu') showMenu(chatId, userId);
+  else if (data === 'price') showPrice(chatId, userId);
   else if (data === 'profile') showProfile(chatId, userId);
   else if (data === 'my_orders') showMyOrders(chatId, userId);
   else if (data === 'about') {
@@ -318,7 +340,12 @@ bot.on('callback_query', async (query) => {
   }
   else if (data === 'areas') {
     const text = `<b>📍 НАШИ РАЙОНЫ</b>\n\nМы работаем по всему <b>${CITY_LABEL}</b> и ближайшим пригородам:\n\n🏙 Центральный, Петроградский\n🌊 Приморский, Курортный\n🌳 Выборгский, Калининский\n🏗 Московский, Фрунзенский\n\n<i>Если вашего района нет в списке — напишите нам, мы постараемся помочь!</i>`;
-    renderScreen(chatId, text, [[{ text: '✍️ Написать', url: `https://t.me/${process.env.TG_USERNAME}` }], ...tabBar(isAdmin)]);
+    const keyboard = [
+      [{ text: '✍️ Написать менеджеру', url: `https://t.me/${process.env.TG_USERNAME}` }],
+      [{ text: '🔙 Назад в меню', callback_data: 'menu' }],
+      ...tabBar(isAdmin)
+    ];
+    renderScreen(chatId, text, keyboard);
   }
   else if (data === 'checklist') {
     const text = `<b>✅ ЧЕК-ЛИСТ УБОРКИ</b>\n\nМы работаем по строгому регламенту. Вот что входит в стандарт:\n\n<b>🏠 Комнаты и спальни:</b>\n• Удаление пыли со всех поверхностей\n• Мытье полов и плинтусов\n• Чистка зеркал и стеклянных поверхностей\n• Заправка кровати\n\n<b>🍳 Кухня:</b>\n• Мытье столешницы и фартука\n• Чистка раковины и смесителя\n• Протирка фасадов шкафов\n• Мытье плиты снаружи\n\n<b>🛀 Санузел:</b>\n• Дезинфекция унитаза\n• Мытье ванны/душевой кабины\n• Чистка раковины и смесителей\n\n<i>Генеральная уборка также включает мытье внутри шкафов, духовки и микроволновки.</i>`;
@@ -353,11 +380,22 @@ bot.on('callback_query', async (query) => {
   }
   else if (data.startsWith('calc_res_')) {
     const [, , type, area] = data.split('_');
-    const prices = { sub: 80, gen: 150, post: 250 };
-    const typeLabel = type === 'sub' ? 'Поддерживающая' : type === 'gen' ? 'Генеральная' : 'После ремонта';
-    const price = area * prices[type];
+    const a = parseInt(area) || 0;
+    let price = 0;
     
-    const text = `<b>🧾 ПРЕДВАРИТЕЛЬНЫЙ РАСЧЕТ</b>\n\nВид: <b>${typeLabel}</b>\nПлощадь: ~<b>${area} м²</b>\nИтого: <b>${price} ₽</b>\n\n<i>*Цена может измениться при наличии сильных загрязнений или доп. услуг.</i>`;
+    if (type === 'sub') {
+      if (a <= 60) price = a * 130;
+      else if (a <= 110) price = a * 95;
+      else price = a * 85;
+    } else {
+      if (a <= 60) price = a * 320;
+      else if (a <= 110) price = a * 290;
+      else price = a * 230;
+    }
+    
+    const typeLabel = type === 'sub' ? 'Поддерживающая' : type === 'gen' ? 'Генеральная' : 'После ремонта';
+    
+    const text = `<b>🧾 ПРЕДВАРИТЕЛЬНЫЙ РАСЧЕТ</b>\n\nВид: <b>${typeLabel}</b>\nПлощадь: ~<b>${area} м²</b>\nПримерная стоимость: <b>${price} ₽</b>\n\n<i>*Цена может измениться при наличии сильных загрязнений или доп. услуг.</i>`;
     const keyboard = [
       [{ text: '✨ Оформить в приложении', web_app: { url: `${WEBAPP_URL}?service=${encodeURIComponent(typeLabel)}&area=${area}` } }],
       [{ text: '🔄 Посчитать заново', callback_data: 'calc' }],
@@ -367,7 +405,12 @@ bot.on('callback_query', async (query) => {
   }
   else if (data === 'subscriptions') {
     const text = `<b>💎 АБОНЕМЕНТЫ</b>\n\nРегулярная чистота — это выгодно!\n\n🔹 <b>3 месяца</b> — скидка 10%\n🔹 <b>6 месяцев</b> — скидка 15%\n🔹 <b>12 месяцев</b> — скидка 20%\n\n<i>Оформите абонемент при создании новой заявки в WebApp.</i>`;
-    renderScreen(chatId, text, [[{ text: '✨ Перейти к заказу', web_app: { url: WEBAPP_URL } }], ...tabBar(isAdmin)]);
+    const keyboard = [
+      [{ text: '✨ Перейти к заказу', web_app: { url: WEBAPP_URL } }],
+      [{ text: '🔙 Назад в меню', callback_data: 'menu' }],
+      ...tabBar(isAdmin)
+    ];
+    renderScreen(chatId, text, keyboard);
   }
   else if (data === 'call_request') {
     bot.sendMessage(chatId, 'Пожалуйста, отправьте ваш контакт, чтобы мы могли вам перезвонить.', {
