@@ -351,7 +351,7 @@ app.get('/app', (req, res) => {
                         <h3>Что убираем?</h3>
                         <div class="input-group">
                             <label>Тип услуги</label>
-                            <select name="service" id="f-service">
+                            <select name="service" id="f-service" onchange="calcPrice()">
                                 <option value="Поддерживающая">Поддерживающая</option>
                                 <option value="Генеральная">Генеральная</option>
                                 <option value="После ремонта">После ремонта</option>
@@ -516,7 +516,15 @@ app.get('/app', (req, res) => {
 
         function calcPrice() {
             const area = document.getElementById('f-area').value || 0;
-            document.getElementById('est-price').innerText = area * 80;
+            const service = document.getElementById('f-service').value;
+            const prices = {
+                'Поддерживающая': 80,
+                'Генеральная': 150,
+                'После ремонта': 250,
+                'Окна': 500 // Example for windows
+            };
+            const price = area * (prices[service] || 80);
+            document.getElementById('est-price').innerText = price;
         }
 
         async function checkLimits() {
