@@ -12,7 +12,11 @@ dotenv.config();
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
-const WEBAPP_URL = process.env.WEBAPP_URL || `${process.env.APP_URL}/app`;
+const WEBAPP_URL = process.env.WEBAPP_URL || (process.env.APP_URL ? `${process.env.APP_URL}/app` : '');
+
+if (!WEBAPP_URL) {
+  console.error('CRITICAL ERROR: APP_URL or WEBAPP_URL is not set in environment variables!');
+}
 const PHONE_PRETTY = process.env.PHONE_PRETTY || '+7 (999) 210-79-77';
 const CITY_LABEL = process.env.CITY_LABEL || 'Санкт-Петербург';
 
@@ -316,28 +320,48 @@ bot.on('callback_query', async (query) => {
     const text = `<b>📍 НАШИ РАЙОНЫ</b>\n\nМы работаем по всему <b>${CITY_LABEL}</b> и ближайшим пригородам:\n\n🏙 Центральный, Петроградский\n🌊 Приморский, Курортный\n🌳 Выборгский, Калининский\n🏗 Московский, Фрунзенский\n\n<i>Если вашего района нет в списке — напишите нам, мы постараемся помочь!</i>`;
     renderScreen(chatId, text, [[{ text: '✍️ Написать', url: `https://t.me/${process.env.TG_USERNAME}` }], ...tabBar(isAdmin)]);
   }
+  else if (data === 'checklist') {
+    const text = `<b>✅ ЧЕК-ЛИСТ УБОРКИ</b>\n\nМы работаем по строгому регламенту. Вот что входит в стандарт:\n\n<b>🏠 Комнаты и спальни:</b>\n• Удаление пыли со всех поверхностей\n• Мытье полов и плинтусов\n• Чистка зеркал и стеклянных поверхностей\n• Заправка кровати\n\n<b>🍳 Кухня:</b>\n• Мытье столешницы и фартука\n• Чистка раковины и смесителя\n• Протирка фасадов шкафов\n• Мытье плиты снаружи\n\n<b>🛀 Санузел:</b>\n• Дезинфекция унитаза\n• Мытье ванны/душевой кабины\n• Чистка раковины и смесителей\n\n<i>Генеральная уборка также включает мытье внутри шкафов, духовки и микроволновки.</i>`;
+    renderScreen(chatId, text, [[{ text: '✨ Заказать сейчас', web_app: { url: WEBAPP_URL } }], ...tabBar(isAdmin)]);
+  }
   else if (data === 'calc') {
-    const text = `<b>🧾 КАЛЬКУЛЯТОР СТОИМОСТИ</b>\n\nВыберите площадь помещения для расчета:`;
+    const text = `<b>🧾 КАЛЬКУЛЯТОР СТОИМОСТИ</b>\n\nСначала выберите <b>вид уборки</b>:`;
     const keyboard = [
-      [
-        { text: '30-40 м²', callback_data: 'calc_40' },
-        { text: '50-60 м²', callback_data: 'calc_60' }
-      ],
-      [
-        { text: '70-90 м²', callback_data: 'calc_90' },
-        { text: '100+ м²', callback_data: 'calc_100' }
-      ],
+      [{ text: '🧹 Поддерживающая', callback_data: 'calc_type_sub' }],
+      [{ text: '🧼 Генеральная', callback_data: 'calc_type_gen' }],
+      [{ text: '🏗 После ремонта', callback_data: 'calc_type_post' }],
       ...tabBar(isAdmin)
     ];
     renderScreen(chatId, text, keyboard);
   }
-  else if (data.startsWith('calc_')) {
-    const area = data.split('_')[1];
-    const price = area * 80;
-    const text = `<b>🧾 РАСЧЕТ</b>\n\nОбъект: ~${area} м²\nПримерная стоимость: <b>${price} ₽</b>\n\n<i>*Точная цена зависит от типа уборки и доп. услуг.</i>`;
+  else if (data.startsWith('calc_type_')) {
+    const type = data.split('_')[2];
+    const typeLabel = type === 'sub' ? 'Поддерживающая' : type === 'gen' ? 'Генеральная' : 'После ремонта';
+    const text = `<b>🧾 КАЛЬКУЛЯТОР: ${typeLabel.toUpperCase()}</b>\n\nТеперь выберите площадь помещения:`;
     const keyboard = [
-      [{ text: '✨ Оформить заявку', web_app: { url: `${WEBAPP_URL}?area=${area}` } }],
-      [{ text: '🔙 Назад', callback_data: 'calc' }]
+      [
+        { text: '30-40 м²', callback_data: `calc_res_${type}_40` },
+        { text: '50-60 м²', callback_data: `calc_res_${type}_60` }
+      ],
+      [
+        { text: '70-90 м²', callback_data: `calc_res_${type}_90` },
+        { text: '100-120 м²', callback_data: `calc_res_${type}_120` }
+      ],
+      [{ text: '🔙 Назад к видам', callback_data: 'calc' }]
+    ];
+    renderScreen(chatId, text, keyboard);
+  }
+  else if (data.startsWith('calc_res_')) {
+    const [, , type, area] = data.split('_');
+    const prices = { sub: 80, gen: 150, post: 250 };
+    const typeLabel = type === 'sub' ? 'Поддерживающая' : type === 'gen' ? 'Генеральная' : 'После ремонта';
+    const price = area * prices[type];
+    
+    const text = `<b>🧾 ПРЕДВАРИТЕЛЬНЫЙ РАСЧЕТ</b>\n\nВид: <b>${typeLabel}</b>\nПлощадь: ~<b>${area} м²</b>\nИтого: <b>${price} ₽</b>\n\n<i>*Цена может измениться при наличии сильных загрязнений или доп. услуг.</i>`;
+    const keyboard = [
+      [{ text: '✨ Оформить в приложении', web_app: { url: `${WEBAPP_URL}?service=${encodeURIComponent(typeLabel)}&area=${area}` } }],
+      [{ text: '🔄 Посчитать заново', callback_data: 'calc' }],
+      ...tabBar(isAdmin)
     ];
     renderScreen(chatId, text, keyboard);
   }
