@@ -74,13 +74,14 @@ async function renderScreen(chatId, text, keyboard, options = {}) {
 function tabBar(isAdmin = false) {
   const tabs = [
     [
-      { text: '🏠 Главная', callback_data: 'menu' },
+      { text: '🏠 Меню', callback_data: 'menu' },
       { text: '📦 Заказы', callback_data: 'my_orders' },
-      { text: '➕ Новый', web_app: { url: WEBAPP_URL } }
+      { text: '👤 Профиль', callback_data: 'profile' }
     ],
     [
+      { text: '🖼 Галерея', callback_data: 'gallery_0' },
       { text: '✅ Чек-лист', callback_data: 'checklist' },
-      { text: '👤 Профиль', callback_data: 'profile' }
+      { text: '➕ Заказать', web_app: { url: WEBAPP_URL } }
     ]
   ];
   if (isAdmin) {
@@ -91,11 +92,11 @@ function tabBar(isAdmin = false) {
 
 function getStatusEmoji(status) {
   switch (status) {
-    case 'pending': return '🟡';
-    case 'confirmed': return '🔵';
-    case 'done': return '🟢';
-    case 'cancelled': return '🔴';
-    default: return '⚪️';
+    case 'pending': return '🟡 Ожидает';
+    case 'confirmed': return '🔵 Подтвержден';
+    case 'done': return '🟢 Выполнен';
+    case 'cancelled': return '🔴 Отменен';
+    default: return '⚪️ Неизвестно';
   }
 }
 
@@ -103,19 +104,22 @@ function getStatusEmoji(status) {
 
 async function showMenu(chatId, userId) {
   const isAdmin = ADMIN_IDS.includes(userId.toString());
-  const text = `<b>${BRAND_NAME}</b>\n${process.env.BRAND_TAGLINE || 'Премиум клининг'}\n\n📍 Работаем в: <b>${CITY_LABEL}</b>\n\nВыберите действие в меню ниже:`;
+  const text = `<b>${BRAND_NAME}</b>\n${process.env.BRAND_TAGLINE || 'Премиум клининг'}\n\n📍 Работаем в: <b>${CITY_LABEL}</b>\n\nВыберите действие:`;
   
   const keyboard = [
-    [{ text: '✨ Заказать уборку', web_app: { url: WEBAPP_URL } }],
+    [{ text: '✨ ЗАКАЗАТЬ УБОРКУ', web_app: { url: WEBAPP_URL } }],
     [
       { text: '💰 Прайс-лист', callback_data: 'price' },
       { text: '🧾 Калькулятор', callback_data: 'calc' }
     ],
     [
-      { text: '📍 Наши районы', callback_data: 'areas' },
-      { text: '💎 Абонементы', callback_data: 'subscriptions' }
+      { text: '🖼 Галерея работ', callback_data: 'gallery_0' },
+      { text: '📍 Районы', callback_data: 'areas' }
     ],
-    [{ text: '💬 О нас / Контакты', callback_data: 'about' }],
+    [
+      { text: '💎 Абонементы', callback_data: 'subscriptions' },
+      { text: '💬 Контакты', callback_data: 'about' }
+    ],
     ...tabBar(isAdmin)
   ];
 
@@ -189,7 +193,7 @@ async function showOrderDetails(chatId, orderId, userId) {
   const isAdmin = ADMIN_IDS.includes(userId.toString());
   
   let text = `<b>📄 ДЕТАЛИ ЗАКАЗА #${order.id}</b>\n`;
-  text += `Статус: ${getStatusEmoji(order.status)} <b>${order.status.toUpperCase()}</b>\n\n`;
+  text += `Статус: <b>${getStatusEmoji(order.status)}</b>\n\n`;
   
   text += `<b>📋 Информация:</b>\n`;
   text += `• Услуга: <b>${order.service}</b>\n`;
@@ -214,6 +218,59 @@ async function showOrderDetails(chatId, orderId, userId) {
   await renderScreen(chatId, text, keyboard);
 }
 
+async function showGallery(chatId, index, userId) {
+  const isAdmin = ADMIN_IDS.includes(userId.toString());
+  if (!db.gallery || db.gallery.length === 0) {
+    const text = `<b>🖼 ГАЛЕРЕЯ РАБОТ</b>\n\nПока здесь нет фотографий.`;
+    const keyboard = [[{ text: '🔙 Меню', callback_data: 'menu' }]];
+    if (isAdmin) keyboard.push([{ text: '➕ Добавить фото', callback_data: 'admin_add_photo' }]);
+    return renderScreen(chatId, text, keyboard);
+  }
+
+  const photo = db.gallery[index];
+  const text = `<b>🖼 ГАЛЕРЕЯ (${index + 1}/${db.gallery.length})</b>\n\n${photo.caption || 'Наши работы'}`;
+  
+  const navRow = [];
+  if (index > 0) navRow.push({ text: '⬅️ Назад', callback_data: `gallery_${index - 1}` });
+  if (index < db.gallery.length - 1) navRow.push({ text: 'Вперед ➡️', callback_data: `gallery_${index + 1}` });
+
+  const keyboard = [
+    navRow,
+    [{ text: '🔙 Меню', callback_data: 'menu' }]
+  ];
+  if (isAdmin) {
+    keyboard.push([{ text: '🗑 Удалить фото', callback_data: `admin_del_photo_${index}` }]);
+    keyboard.push([{ text: '➕ Добавить еще', callback_data: 'admin_add_photo' }]);
+  }
+
+  // Gallery uses images, so we might need to send a new message if renderScreen only does text
+  // But user wants single message. Telegram allows editing message media!
+  try {
+    if (lastMessages[chatId]) {
+      await bot.editMessageMedia({
+        type: 'photo',
+        media: photo.url,
+        caption: text,
+        parse_mode: 'HTML'
+      }, {
+        chat_id: chatId,
+        message_id: lastMessages[chatId],
+        reply_markup: { inline_keyboard: keyboard }
+      }).catch(async () => {
+        await deleteLastMessage(chatId);
+        const msg = await bot.sendPhoto(chatId, photo.url, { caption: text, parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } });
+        lastMessages[chatId] = msg.message_id;
+      });
+    } else {
+      const msg = await bot.sendPhoto(chatId, photo.url, { caption: text, parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } });
+      lastMessages[chatId] = msg.message_id;
+    }
+  } catch (e) {
+    const msg = await bot.sendPhoto(chatId, photo.url, { caption: text, parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } });
+    lastMessages[chatId] = msg.message_id;
+  }
+}
+
 // --- ADMIN SCREENS ---
 
 async function showAdminDashboard(chatId) {
@@ -229,27 +286,30 @@ async function showAdminDashboard(chatId) {
   lastWeekOrders.forEach(o => services[o.service] = (services[o.service] || 0) + 1);
   const topService = Object.entries(services).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
 
-  let text = `<b>📈 АДМИН-ДАШБОРД</b>\n\n`;
+  let text = `<b>📈 ПАНЕЛЬ УПРАВЛЕНИЯ</b>\n\n`;
   text += `⏳ Ожидают: <b>${pending}</b>\n`;
   text += `💰 Выручка (7д): <b>${revenue} ₽</b>\n`;
   text += `🔥 Топ услуга: <b>${topService}</b>\n`;
   text += `📊 Заказов (7д): <b>${lastWeekOrders.length}</b>\n\n`;
-  text += `Используйте кнопки ниже для управления:`;
+  text += `<b>Быстрый поиск:</b> <code>/find имя_или_номер</code>`;
 
   const keyboard = [
     [
-      { text: '⏳ Очередь', callback_data: 'admin_queue' },
-      { text: '📅 Сегодня', callback_data: 'admin_today' }
+      { text: '⏳ Новые заявки', callback_data: 'admin_queue' },
+      { text: '📅 На сегодня', callback_data: 'admin_today' }
     ],
     [
-      { text: '🕒 7 дней', callback_data: 'admin_upcoming' },
-      { text: '📋 Все 30', callback_data: 'admin_all' }
+      { text: '🕒 На неделю', callback_data: 'admin_upcoming' },
+      { text: '📋 Все (30)', callback_data: 'admin_all' }
     ],
     [
-      { text: '🧼 QC Список', callback_data: 'admin_qc_list' },
-      { text: '📤 Экспорт CSV', callback_data: 'admin_export' }
+      { text: '🧼 Контроль (QC)', callback_data: 'admin_qc_list' },
+      { text: '📸 Галерея', callback_data: 'gallery_0' }
     ],
-    [{ text: '🏠 Меню', callback_data: 'menu' }]
+    [
+      { text: '📤 Экспорт CSV', callback_data: 'admin_export' },
+      { text: '🏠 В меню', callback_data: 'menu' }
+    ]
   ];
 
   await renderScreen(chatId, text, keyboard);
@@ -280,7 +340,7 @@ async function showAdminOrderDetails(chatId, orderId) {
   if (!order) return;
 
   let text = `<b>⚙️ УПРАВЛЕНИЕ #${order.id}</b>\n`;
-  text += `Статус: ${getStatusEmoji(order.status)} <b>${order.status.toUpperCase()}</b>\n`;
+  text += `Статус: <b>${getStatusEmoji(order.status)}</b>\n`;
   if (order.overlimit) text += `⚠️ <b>ВНИМАНИЕ: ОВЕРБУКИНГ</b>\n`;
   text += `\n👤 ${order.name} (${order.phone})\n`;
   text += `📍 ${order.address}\n`;
@@ -347,7 +407,33 @@ bot.on('message', async (msg) => {
 
   // 3. Handle off-topic (non-command text)
   if (text && !text.startsWith('/')) {
+    const userState = db.users[userId]?.state;
+    if (userState === 'awaiting_photo') {
+      // Handled in bot.on('photo')
+      return;
+    }
     return showMenu(chatId, userId);
+  }
+});
+
+bot.on('photo', async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  if (!ADMIN_IDS.includes(userId.toString())) return;
+  
+  if (db.users[userId]?.state === 'awaiting_photo') {
+    const photo = msg.photo[msg.photo.length - 1];
+    const caption = msg.caption || '';
+    
+    db.gallery.push({
+      id: Date.now().toString(),
+      url: photo.file_id,
+      caption: caption
+    });
+    
+    db.users[userId].state = null;
+    try { await bot.deleteMessage(chatId, msg.message_id); } catch(e) {}
+    await renderScreen(chatId, `✅ Фото успешно добавлено в галерею!`, [[{ text: '🖼 Открыть галерею', callback_data: 'gallery_0' }], [{ text: '🏠 Меню', callback_data: 'menu' }]]);
   }
 });
 
@@ -384,6 +470,10 @@ bot.on('callback_query', async (query) => {
   else if (data === 'price') showPrice(chatId, userId);
   else if (data === 'profile') showProfile(chatId, userId);
   else if (data === 'my_orders') showMyOrders(chatId, userId);
+  else if (data.startsWith('gallery_')) {
+    const index = parseInt(data.split('_')[1]);
+    showGallery(chatId, index, userId);
+  }
   else if (data === 'about') {
     const text = `<b>О НАС</b>\n\n${BRAND_NAME} — это профессиональный сервис уборки в ${CITY_LABEL}.\n\n✅ Используем эко-средства\n✅ Клинеры с опытом 3+ года\n✅ Контроль качества по чек-листу\n\nСайт: ${process.env.SITE_URL}\nТелефон: ${PHONE_PRETTY}`;
     const keyboard = [
@@ -486,7 +576,17 @@ bot.on('callback_query', async (query) => {
   
   // Admin Actions
   else if (isAdmin) {
-    if (data === 'admin_dashboard') showAdminDashboard(chatId);
+    if (data === 'admin_add_photo') {
+      db.users[userId] = db.users[userId] || {};
+      db.users[userId].state = 'awaiting_photo';
+      await renderScreen(chatId, `<b>📸 ДОБАВЛЕНИЕ ФОТО</b>\n\nПожалуйста, отправьте фотографию с описанием в подписи.`, [[{ text: '❌ Отмена', callback_data: 'menu' }]]);
+    }
+    else if (data.startsWith('admin_del_photo_')) {
+      const index = parseInt(data.split('_')[3]);
+      db.gallery.splice(index, 1);
+      showGallery(chatId, 0, userId);
+    }
+    else if (data === 'admin_dashboard') showAdminDashboard(chatId);
     else if (data === 'admin_queue') showAdminOrderList(chatId, '⏳ ОЧЕРЕДЬ (PENDING)', o => o.status === 'pending');
     else if (data === 'admin_today') {
       const today = new Date().toISOString().split('T')[0];
