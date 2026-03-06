@@ -274,7 +274,7 @@ app.get('/app', (req, res) => {
             --text: #ffffff;
             --text-muted: #888888;
             --accent: #c5a059; /* Muted Gold */
-            --radius: 24px;
+            --radius: 28px;
             --glass: rgba(255, 255, 255, 0.03);
             --border: rgba(255, 255, 255, 0.08);
             --f-display: 'Playfair Display', serif;
@@ -284,52 +284,64 @@ app.get('/app', (req, res) => {
             font-family: 'Inter', -apple-system, sans-serif;
             background: var(--bg); color: var(--text); margin: 0; padding: 0;
             overflow-x: hidden; -webkit-font-smoothing: antialiased;
+            background-image: radial-gradient(circle at 50% 0%, rgba(197, 160, 89, 0.05) 0%, transparent 50%);
         }
         .header {
-            background: rgba(5, 5, 5, 0.8); backdrop-filter: blur(20px);
+            background: rgba(5, 5, 5, 0.8); backdrop-filter: blur(30px);
             padding: 24px 20px; position: sticky; top: 0; z-index: 100;
             display: flex; align-items: center; justify-content: space-between;
             border-bottom: 1px solid var(--border);
         }
-        .header h1 { margin: 0; font-size: 16px; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); font-family: var(--f-display); }
+        .header h1 { margin: 0; font-size: 16px; font-weight: 900; letter-spacing: 4px; text-transform: uppercase; color: var(--accent); font-family: var(--f-display); }
         
-        .container { padding: 20px; max-width: 500px; margin: 0 auto; padding-bottom: 120px; }
+        .container { padding: 20px; max-width: 500px; margin: 0 auto; padding-bottom: 140px; }
         
-        .screen { display: none; animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
+        .screen { display: none; animation: slideUp 0.7s cubic-bezier(0.16, 1, 0.3, 1); }
         .screen.active { display: block; }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(50px); } to { opacity: 1; transform: translateY(0); } }
 
         .card { 
             background: var(--card); border-radius: var(--radius); padding: 32px 24px;
             margin-bottom: 24px; border: 1px solid var(--border);
-            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.7);
             position: relative; overflow: hidden;
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
+        .card:active { transform: scale(0.98); }
         .card::before {
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
             background: linear-gradient(90deg, transparent, var(--border), transparent);
         }
 
         .btn {
-            width: 100%; padding: 22px; border-radius: 20px; border: none;
+            width: 100%; padding: 24px; border-radius: 22px; border: none;
             font-size: 13px; font-weight: 900; cursor: pointer;
             transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
             display: flex; align-items: center; justify-content: center; gap: 12px;
-            text-transform: uppercase; letter-spacing: 2.5px;
+            text-transform: uppercase; letter-spacing: 3px;
+            position: relative; overflow: hidden;
         }
-        .btn-primary { background: var(--accent); color: #000; }
+        .btn-primary { background: var(--accent); color: #000; box-shadow: 0 15px 30px rgba(197, 160, 89, 0.2); }
         .btn-secondary { background: var(--glass); color: var(--text); border: 1px solid var(--border); }
-        .btn:active { transform: scale(0.96); }
+        .btn:active { transform: scale(0.95); }
         .btn:disabled { opacity: 0.2; cursor: not-allowed; }
 
         .input-group { margin-bottom: 32px; }
         .input-group label { display: block; font-size: 10px; font-weight: 900; margin-bottom: 14px; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; }
         .input-group input, .input-group select, .input-group textarea {
-            width: 100%; padding: 20px; border-radius: 18px; border: 1px solid var(--border);
+            width: 100%; padding: 22px; border-radius: 20px; border: 1px solid var(--border);
             font-size: 16px; background: var(--glass); color: white;
             transition: all 0.4s;
+            appearance: none;
         }
-        .input-group input:focus { border-color: var(--accent); background: rgba(255, 255, 255, 0.06); box-shadow: 0 0 20px rgba(197, 160, 89, 0.1); }
+        .input-group select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23c5a059'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 20px center;
+            background-size: 16px;
+        }
+        .input-group option { background: #1a1a1a; color: white; padding: 10px; }
+        .input-group input:focus, .input-group select:focus, .input-group textarea:focus { border-color: var(--accent); background: rgba(255, 255, 255, 0.06); box-shadow: 0 0 30px rgba(197, 160, 89, 0.15); }
         
         .stepper { display: flex; gap: 14px; margin-bottom: 40px; padding: 0 10px; }
         .step { flex: 1; height: 2px; background: var(--border); border-radius: 1px; transition: all 0.5s; }
@@ -377,43 +389,43 @@ app.get('/app', (req, res) => {
         <!-- HOME SCREEN -->
         <div id="screen-home" class="screen active">
             <div class="hero-card">
-                <h2 style="margin-top: 0; font-size: 24px; font-weight: 800;">Чистота как искусство ✨</h2>
-                <p style="opacity: 0.8; font-size: 15px; line-height: 1.4; margin-bottom: 20px;">Забронируйте профессиональную уборку за 1 минуту.</p>
-                <button class="btn btn-primary" onclick="showScreen('new-order')" style="box-shadow: 0 4px 15px rgba(234, 179, 8, 0.4);">✨ Заказать уборку</button>
+                <h2 style="margin-top: 0; font-family: var(--f-display); font-style: italic;">Чистота как искусство ✨</h2>
+                <p style="opacity: 0.8; font-size: 15px; line-height: 1.4; margin-bottom: 32px;">Забронируйте профессиональную уборку за 1 минуту.</p>
+                <button class="btn btn-primary" onclick="showScreen('new-order')">✨ Заказать уборку</button>
             </div>
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
-                <div class="card" onclick="showScreen('my-orders')" style="text-align: center; padding: 20px;">
-                    <span style="font-size: 32px;">📦</span>
-                    <div style="font-weight: 700; margin-top: 10px; font-size: 14px;">Мои заказы</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px;">
+                <div class="card" onclick="showScreen('cabinet')" style="text-align: center; padding: 32px 20px; margin-bottom: 0;">
+                    <span style="font-size: 32px; display: block; margin-bottom: 12px;">👤</span>
+                    <div style="font-weight: 900; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Кабинет</div>
                 </div>
-                <div class="card" onclick="showScreen('subscriptions')" style="text-align: center; padding: 20px;">
-                    <span style="font-size: 32px;">💎</span>
-                    <div style="font-weight: 700; margin-top: 10px; font-size: 14px;">Абонементы</div>
+                <div class="card" onclick="showScreen('subscriptions')" style="text-align: center; padding: 32px 20px; margin-bottom: 0;">
+                    <span style="font-size: 32px; display: block; margin-bottom: 12px;">💎</span>
+                    <div style="font-weight: 900; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Абонементы</div>
                 </div>
             </div>
 
-            <div class="card">
-                <h3 style="margin-top: 0; font-size: 18px; font-weight: 700;">Наши услуги</h3>
-                <div style="display: flex; flex-direction: column; gap: 12px;">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <div style="width: 40px; height: 40px; background: #eff6ff; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🧹</div>
+            <div class="card" style="padding: 32px 24px;">
+                <h3 style="margin-top: 0; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: var(--accent); margin-bottom: 24px;">Наши услуги</h3>
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div style="width: 48px; height: 48px; background: rgba(197, 160, 89, 0.1); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px;">🧹</div>
                         <div>
-                            <div style="font-weight: 600; font-size: 14px;">Поддерживающая</div>
+                            <div style="font-weight: 800; font-size: 15px;">Поддерживающая</div>
                             <div style="font-size: 12px; color: var(--text-muted);">Для регулярного уюта</div>
                         </div>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <div style="width: 40px; height: 40px; background: #fef2f2; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🧼</div>
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div style="width: 48px; height: 48px; background: rgba(197, 160, 89, 0.1); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px;">🧼</div>
                         <div>
-                            <div style="font-weight: 600; font-size: 14px;">Генеральная</div>
+                            <div style="font-weight: 800; font-size: 15px;">Генеральная</div>
                             <div style="font-size: 12px; color: var(--text-muted);">Идеальная чистота везде</div>
                         </div>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <div style="width: 40px; height: 40px; background: #f0fdf4; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🏗</div>
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div style="width: 48px; height: 48px; background: rgba(197, 160, 89, 0.1); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px;">🏗</div>
                         <div>
-                            <div style="font-weight: 600; font-size: 14px;">После ремонта</div>
+                            <div style="font-weight: 800; font-size: 15px;">После ремонта</div>
                             <div style="font-size: 12px; color: var(--text-muted);">Удалим строительную пыль</div>
                         </div>
                     </div>
@@ -431,52 +443,56 @@ app.get('/app', (req, res) => {
 
             <form id="order-form">
                 <div id="form-step-1">
-                    <div class="card">
-                        <h3>Что убираем?</h3>
+                    <div class="card" style="padding: 40px 24px;">
+                        <div style="text-align: center; margin-bottom: 32px;">
+                            <div style="font-size: 10px; font-weight: 900; color: var(--accent); text-transform: uppercase; letter-spacing: 3px; margin-bottom: 8px;">Шаг 1</div>
+                            <h2 style="margin:0; font-family: var(--f-display); font-size: 28px; font-style: italic;">Что убираем?</h2>
+                        </div>
+                        
                         <div class="input-group">
-                            <label>Тип услуги</label>
+                            <label>Вид уборки</label>
                             <select name="service" id="f-service" onchange="calcPrice()">
-                                <option value="Поддерживающая">Поддерживающая</option>
-                                <option value="Генеральная">Генеральная</option>
-                                <option value="После ремонта">После ремонта</option>
-                                <option value="Окна">Мытье окон</option>
+                                <option value="Поддерживающая">🧹 Поддерживающая</option>
+                                <option value="Генеральная">🧼 Генеральная</option>
+                                <option value="После ремонта">🏗 После ремонта</option>
+                                <option value="Окна">🪟 Мытье окон</option>
                             </select>
                         </div>
-                        <div class="input-group">
-                            <label>Тип помещения</label>
-                            <select name="premises">
-                                <option value="Квартира">Квартира</option>
-                                <option value="Дом">Дом</option>
-                                <option value="Офис">Офис</option>
-                            </select>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div class="input-group">
+                                <label>Площадь (м²)</label>
+                                <input type="number" name="area" id="f-area" placeholder="45" required oninput="calcPrice()">
+                            </div>
+                            <div class="input-group">
+                                <label>Комнат</label>
+                                <input type="number" name="rooms" placeholder="1" required>
+                            </div>
                         </div>
-                        <div class="input-group">
-                            <label>Площадь (м²)</label>
-                            <input type="number" name="area" id="f-area" placeholder="45" required oninput="calcPrice()">
-                        </div>
-                        <div class="input-group">
-                            <label>Комнат</label>
-                            <input type="number" name="rooms" placeholder="1" required>
-                        </div>
-                        <div style="text-align: right;">
-                            <div style="font-size: 12px; color: var(--text-muted);">Примерная стоимость:</div>
-                            <div class="price-tag"><span id="est-price">0</span> ₽</div>
+
+                        <div style="text-align: center; padding-top: 20px; border-top: 1px solid var(--border);">
+                            <div style="font-size: 11px; font-weight: 900; color: var(--text-muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px;">Примерная стоимость</div>
+                            <div class="price-tag" style="font-size: 48px;"><span id="est-price">0</span> ₽</div>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-primary" onclick="nextStep(2)">Далее →</button>
+                    <button type="button" class="btn btn-primary" onclick="nextStep(2)">Продолжить ✨</button>
                 </div>
 
                 <div id="form-step-2" style="display: none;">
-                    <div class="card">
-                        <h3>Когда и куда?</h3>
-                        <div class="input-group">
-                            <label>Дата</label>
-                            <input type="date" name="date" id="f-date" required onchange="checkLimits()">
-                            <div id="limit-info" style="margin-top: 8px;"></div>
-                            <div id="busy-dates-info" style="font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;"></div>
+                    <div class="card" style="padding: 40px 24px;">
+                        <div style="text-align: center; margin-bottom: 32px;">
+                            <div style="font-size: 10px; font-weight: 900; color: var(--accent); text-transform: uppercase; letter-spacing: 3px; margin-bottom: 8px;">Шаг 2</div>
+                            <h2 style="margin:0; font-family: var(--f-display); font-size: 28px; font-style: italic;">Когда и куда?</h2>
                         </div>
+
                         <div class="input-group">
-                            <label>Время</label>
+                            <label>Дата визита</label>
+                            <input type="date" name="date" id="f-date" required onchange="checkLimits()">
+                            <div id="limit-info" style="margin-top: 12px;"></div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Удобное время</label>
                             <select name="time">
                                 <option value="09:00">09:00</option>
                                 <option value="10:00">10:00</option>
@@ -485,20 +501,25 @@ app.get('/app', (req, res) => {
                                 <option value="16:00">16:00</option>
                             </select>
                         </div>
+
                         <div class="input-group">
-                            <label>Адрес</label>
+                            <label>Адрес объекта</label>
                             <textarea name="address" placeholder="Улица, дом, кв..." required rows="2"></textarea>
                         </div>
                     </div>
                     <div style="display: flex; gap: 12px;">
-                        <button type="button" class="btn btn-secondary" onclick="nextStep(1)">← Назад</button>
-                        <button type="button" class="btn btn-primary" onclick="nextStep(3)">Далее →</button>
+                        <button type="button" class="btn btn-secondary" onclick="nextStep(1)" style="flex: 0.4;">←</button>
+                        <button type="button" class="btn btn-primary" onclick="nextStep(3)" style="flex: 1;">Далее ✨</button>
                     </div>
                 </div>
 
                 <div id="form-step-3" style="display: none;">
-                    <div class="card">
-                        <h3>Ваши данные</h3>
+                    <div class="card" style="padding: 40px 24px;">
+                        <div style="text-align: center; margin-bottom: 32px;">
+                            <div style="font-size: 10px; font-weight: 900; color: var(--accent); text-transform: uppercase; letter-spacing: 3px; margin-bottom: 8px;">Шаг 3</div>
+                            <h2 style="margin:0; font-family: var(--f-display); font-size: 28px; font-style: italic;">Ваши контакты</h2>
+                        </div>
+
                         <div class="input-group">
                             <label>Ваше имя</label>
                             <input type="text" name="name" placeholder="Иван Иванов" required>
@@ -508,31 +529,38 @@ app.get('/app', (req, res) => {
                             <input type="tel" name="phone" placeholder="+7 (999) 000-00-00" required>
                         </div>
                         <div class="input-group">
-                            <label>Комментарий к заказу</label>
-                            <textarea name="comment" placeholder="Например: есть домашние животные, нужен пропуск на территорию..." rows="2"></textarea>
+                            <label>Комментарий</label>
+                            <textarea name="comment" placeholder="Например: есть домашние животные..." rows="2"></textarea>
                         </div>
-                        <div class="input-group" style="display: flex; align-items: center; gap: 10px; background: #f9fafb; padding: 12px; border-radius: 12px; border: 1px dashed var(--accent);">
-                            <input type="checkbox" name="subscription" id="f-sub" style="width: 20px; height: 20px;">
-                            <label for="f-sub" style="margin: 0; color: var(--primary); font-weight: 600;">✨ Оформить абонемент (-15%)</label>
+                        
+                        <div style="background: rgba(197, 160, 89, 0.05); border: 1px dashed var(--accent); padding: 20px; border-radius: 20px; display: flex; align-items: center; gap: 16px;">
+                            <input type="checkbox" name="subscription" id="f-sub" style="width: 24px; height: 24px; accent-color: var(--accent);">
+                            <label for="f-sub" style="margin: 0; color: var(--text); font-weight: 700; font-size: 13px; text-transform: none; letter-spacing: 0;">💎 Оформить абонемент (-15%)</label>
                         </div>
                     </div>
                     <div style="display: flex; gap: 12px;">
-                        <button type="button" class="btn btn-secondary" onclick="nextStep(2)">← Назад</button>
-                        <button type="submit" class="btn btn-primary" id="submit-btn" style="box-shadow: 0 4px 12px rgba(234, 179, 8, 0.3);">🚀 Забронировать уборку</button>
+                        <button type="button" class="btn btn-secondary" onclick="nextStep(2)" style="flex: 0.4;">←</button>
+                        <button type="submit" class="btn btn-primary" id="submit-btn" style="flex: 1;">Забронировать ✨</button>
                     </div>
                 </div>
             </form>
         </div>
 
-        <!-- MY ORDERS SCREEN -->
-        <div id="screen-my-orders" class="screen">
-            <h3>Мои заказы</h3>
+        <!-- CABINET SCREEN -->
+        <div id="screen-cabinet" class="screen">
+            <div class="card" style="padding: 32px 24px; text-align: center; margin-bottom: 32px;">
+                <div style="width: 80px; height: 80px; background: var(--glass); border: 1px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 40px; margin: 0 auto 16px;">👤</div>
+                <h2 id="cab-name" style="margin: 0; font-family: var(--f-display); font-size: 28px;">—</h2>
+                <div id="cab-phone" style="font-size: 14px; color: var(--text-muted); margin-top: 4px;">—</div>
+            </div>
+            
+            <h3 style="font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: var(--accent); margin-bottom: 16px; padding-left: 10px;">История заказов</h3>
             <div id="orders-list">Загрузка...</div>
         </div>
 
         <!-- ORDER DETAILS SCREEN -->
         <div id="screen-order-details" class="screen">
-            <button class="btn btn-secondary" onclick="showScreen('my-orders')" style="margin-bottom: 16px; width: auto; padding: 8px 16px;">← К списку</button>
+            <button class="btn btn-secondary" onclick="showScreen('cabinet')" style="margin-bottom: 24px; width: auto; padding: 12px 24px; border-radius: 16px;">← К списку</button>
             <div id="order-details-content"></div>
         </div>
 
@@ -554,7 +582,7 @@ app.get('/app', (req, res) => {
 
     <div class="tab-bar">
         <div class="tab active" id="tab-home" onclick="showScreen('home')"><i>🏠</i>Главная</div>
-        <div class="tab" id="tab-orders" onclick="showScreen('my-orders')"><i>📦</i>Заказы</div>
+        <div class="tab" id="tab-cabinet" onclick="showScreen('cabinet')"><i>👤</i>Кабинет</div>
         <div class="tab" id="tab-sub" onclick="showScreen('subscriptions')"><i>💎</i>Абонементы</div>
     </div>
 
@@ -564,8 +592,19 @@ app.get('/app', (req, res) => {
         const initData = tg.initData;
         const user = tg.initDataUnsafe.user;
 
+        // Pre-fill user data
+        const savedUser = ${JSON.stringify(db.users)}[user?.id] || {};
         if (user) {
             document.getElementById('user-name').innerText = user.first_name;
+            if (savedUser.name) document.querySelector('input[name="name"]').value = savedUser.name;
+            if (savedUser.phone) document.querySelector('input[name="phone"]').value = savedUser.phone;
+            if (savedUser.addresses && savedUser.addresses.length > 0) {
+                document.querySelector('textarea[name="address"]').value = savedUser.addresses[0];
+            }
+            
+            // Fill cabinet
+            document.getElementById('cab-name').innerText = savedUser.name || user.first_name;
+            document.getElementById('cab-phone').innerText = savedUser.phone || 'Номер не указан';
         }
 
         // Set min date to today
@@ -587,10 +626,10 @@ app.get('/app', (req, res) => {
             document.getElementById('screen-' + id).classList.add('active');
             
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            const tab = document.getElementById('tab-' + (id === 'new-order' ? 'new' : id === 'my-orders' ? 'orders' : id === 'subscriptions' ? 'sub' : 'home'));
+            const tab = document.getElementById('tab-' + id);
             if (tab) tab.classList.add('active');
-
-            if (id === 'my-orders') loadOrders();
+            
+            if (id === 'cabinet') loadOrders();
             window.scrollTo(0, 0);
         }
 
@@ -674,22 +713,26 @@ app.get('/app', (req, res) => {
                 return;
             }
 
-            list.innerHTML = orders.map(o => \`
-                <div class="card" onclick="viewOrder('\${o.id}')">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                        <span style="font-weight:700;">Заказ #\${o.id}</span>
-                        <span class="status-badge status-\${o.status}">\${o.status}</span>
-                    </div>
-                    <div style="font-size:14px; color:var(--text-muted);">
-                        \${o.service} • \${o.date} • \${o.estimated_price} ₽
-                    </div>
-                </div>
-            \`).join('');
+            list.innerHTML = orders.map(o => {
+                return '<div class="card" onclick="viewOrder(\'' + o.id + '\')" style="padding: 24px;">' +
+                    '<div style="display:flex; justify-content:space-between; align-items: flex-start; margin-bottom:16px;">' +
+                        '<div>' +
+                            '<div style="font-size: 10px; font-weight: 900; color: var(--accent); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 4px;">Заказ #' + o.id + '</div>' +
+                            '<div style="font-size: 18px; font-weight: 800; font-family: var(--f-display);">' + o.service + '</div>' +
+                        '</div>' +
+                        '<span class="status-badge status-' + o.status + '">' + o.status + '</span>' +
+                    '</div>' +
+                    '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px; color: var(--text-muted);">' +
+                        '<div>📅 ' + o.date + '</div>' +
+                        '<div style="text-align: right;">💰 ' + o.estimated_price + ' ₽</div>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
         }
 
         async function viewOrder(id) {
             const content = document.getElementById('order-details-content');
-            content.innerHTML = 'Загрузка...';
+            content.innerHTML = '<div style="padding: 100px 0; text-align: center; opacity: 0.5;">Загрузка...</div>';
             showScreen('order-details');
             
             const res = await fetch('/api/order/' + id, {
@@ -699,40 +742,53 @@ app.get('/app', (req, res) => {
             
             const steps = [
                 { label: 'Принято', done: true },
-                { label: 'Подтверждено', done: o.status !== 'pending' && o.status !== 'cancelled' },
-                { label: 'Выполнено', done: o.status === 'done' },
-                { label: 'Отзыв', done: !!o.review }
+                { label: 'В работе', done: o.status !== 'pending' && o.status !== 'cancelled' },
+                { label: 'Готово', done: o.status === 'done' }
             ];
 
-            content.innerHTML = \`
-                <div class="card">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-                        <h2 style="margin:0;">#\${o.id}</h2>
-                        <span class="status-badge status-\${o.status}">\${o.status}</span>
-                    </div>
-                    
-                    <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-                        \${steps.map(s => \`
-                            <div style="text-align:center; flex:1;">
-                                <div style="width:24px; height:24px; border-radius:50%; background:\${s.done ? 'var(--accent)' : '#e5e7eb'}; margin:0 auto 4px; display:flex; align-items:center; justify-content:center; font-size:12px;">\${s.done ? '✓' : ''}</div>
-                                <div style="font-size:10px; color:\${s.done ? 'var(--text)' : 'var(--text-muted)'}">\${s.label}</div>
-                            </div>
-                        \`).join('')}
-                    </div>
+            content.innerHTML = '<div class="card" style="padding: 40px 24px;">' +
+                '<div style="text-align: center; margin-bottom: 32px;">' +
+                    '<div style="font-size: 11px; font-weight: 900; color: var(--accent); text-transform: uppercase; letter-spacing: 3px; margin-bottom: 8px;">Детали заказа</div>' +
+                    '<h2 style="margin:0; font-family: var(--f-display); font-size: 32px; font-style: italic;">#' + o.id + '</h2>' +
+                '</div>' +
+                
+                '<div style="display:flex; justify-content:space-between; margin-bottom:40px; position: relative; padding: 0 10px;">' +
+                    '<div style="position: absolute; top: 12px; left: 40px; right: 40px; height: 1px; background: var(--border); z-index: 0;"></div>' +
+                    steps.map((s, i) => {
+                        return '<div style="text-align:center; flex:1; position: relative; z-index: 1;">' +
+                            '<div style="width:26px; height:26px; border-radius:50%; background:' + (s.done ? 'var(--accent)' : '#1a1a1a') + '; border: 1px solid ' + (s.done ? 'var(--accent)' : 'var(--border)') + '; margin:0 auto 8px; display:flex; align-items:center; justify-content:center; font-size:12px; color: ' + (s.done ? '#000' : 'var(--text-muted)') + '; box-shadow: ' + (s.done ? '0 0 20px rgba(197, 160, 89, 0.4)' : 'none') + '; transition: all 0.5s;">' + (s.done ? '✓' : i+1) + '</div>' +
+                            '<div style="font-size:9px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color:' + (s.done ? 'var(--text)' : 'var(--text-muted)') + '">' + s.label + '</div>' +
+                        '</div>';
+                    }).join('') +
+                '</div>' +
 
-                    <div style="font-size:14px; line-height:1.6;">
-                        <b>Услуга:</b> \${o.service} (\${o.premises})<br>
-                        <b>Объект:</b> \${o.area} м², \${o.rooms} комн.<br>
-                        <b>Дата:</b> \${o.date} в \${o.time}<br>
-                        <b>Адрес:</b> \${o.address}<br>
-                        <b>Цена:</b> \${o.estimated_price} ₽
-                    </div>
-                    
-                    \${o.status !== 'done' && o.status !== 'cancelled' ? \`
-                        <button class="btn btn-secondary" style="margin-top:20px; color:#ef4444;" onclick="cancelOrder('\${o.id}')">Отменить заказ</button>
-                    \` : ''}
-                </div>
-            \`;
+                '<div style="display: flex; flex-direction: column; gap: 20px; font-size: 15px;">' +
+                    '<div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 12px;">' +
+                        '<span style="color: var(--text-muted);">Услуга</span>' +
+                        '<span style="font-weight: 700;">' + o.service + '</span>' +
+                    '</div>' +
+                    '<div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 12px;">' +
+                        '<span style="color: var(--text-muted);">Объект</span>' +
+                        '<span style="font-weight: 700;">' + o.premises + ' (' + o.area + ' м²)</span>' +
+                    '</div>' +
+                    '<div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 12px;">' +
+                        '<span style="color: var(--text-muted);">Дата и время</span>' +
+                        '<span style="font-weight: 700;">' + o.date + ' в ' + o.time + '</span>' +
+                    '</div>' +
+                    '<div style="display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">' +
+                        '<span style="color: var(--text-muted);">Адрес</span>' +
+                        '<span style="font-weight: 700; line-height: 1.4;">' + o.address + '</span>' +
+                    '</div>' +
+                    '<div style="display: flex; justify-content: space-between; padding-top: 10px;">' +
+                        '<span style="color: var(--accent); font-weight: 900; text-transform: uppercase; letter-spacing: 2px; font-size: 12px;">Итого</span>' +
+                        '<span style="font-size: 24px; font-weight: 900; color: var(--accent); font-family: var(--f-display);">' + o.estimated_price + ' ₽</span>' +
+                    '</div>' +
+                '</div>' +
+                
+                (o.status !== 'done' && o.status !== 'cancelled' ? 
+                    '<button class="btn btn-secondary" style="margin-top:40px; color:#ef4444; border-color: rgba(239, 68, 68, 0.2);" onclick="cancelOrder(\'' + o.id + '\')">Отменить заказ</button>'
+                : '') +
+            '</div>';
         }
 
         async function cancelOrder(id) {
