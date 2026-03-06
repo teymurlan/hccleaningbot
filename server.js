@@ -28,6 +28,7 @@ const APP_URL = process.env.APP_URL;
 let db = {
   orders: [],
   users: {}, // user_id -> { name, phone, addresses: [] }
+  gallery: [], // { id, url, caption }
   lastSent: {
     digest: null,
   }
@@ -116,25 +117,28 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Get limits for a date
-app.get('/api/limits', authMiddleware, (req, res) => {
-  const date = req.query.date;
-  if (!date) return res.json({ booked: 0, left: DAILY_LIMIT });
+// Get availability for calendar
+app.get('/api/availability', authMiddleware, (req, res) => {
+  const busyDates = {};
+  db.orders
+    .filter(o => o.status !== 'cancelled')
+    .forEach(o => {
+      const area = parseInt(o.area) || 0;
+      busyDates[o.date] = (busyDates[o.date] || 0) + area;
+    });
   
-  const booked = db.orders
-    .filter(o => o.date === date && o.status !== 'cancelled')
-    .reduce((sum, o) => sum + (parseInt(o.area) || 0), 0);
-  
-  res.json({ booked, left: Math.max(0, DAILY_LIMIT - booked) });
+  const fullyBooked = Object.keys(busyDates).filter(date => busyDates[date] >= DAILY_LIMIT);
+  res.json({ fullyBooked });
 });
 
 // Get order count for a date
 app.get('/api/orders-count', authMiddleware, (req, res) => {
   const date = req.query.date;
-  if (!date) return res.json({ count: 0 });
+  if (!date) return res.json({ count: 0, area: 0 });
   
-  const count = db.orders.filter(o => o.date === date && o.status !== 'cancelled').length;
-  res.json({ count });
+  const orders = db.orders.filter(o => o.date === date && o.status !== 'cancelled');
+  const area = orders.reduce((sum, o) => sum + (parseInt(o.area) || 0), 0);
+  res.json({ count: orders.length, area });
 });
 
 // Create order
@@ -348,6 +352,8 @@ app.get('/app', (req, res) => {
         input[type="date"] {
             position: relative;
             padding-left: 40px;
+            appearance: none;
+            -webkit-appearance: none;
         }
         input[type="date"]::before {
             content: '📅';
@@ -355,6 +361,17 @@ app.get('/app', (req, res) => {
             left: 12px;
             top: 50%;
             transform: translateY(-50%);
+        }
+
+        .hero-card {
+            background: linear-gradient(135deg, var(--primary) 0%, #1f2937 100%);
+            color: white; border-radius: 24px; padding: 24px; margin-bottom: 20px;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+            position: relative; overflow: hidden;
+        }
+        .hero-card::after {
+            content: ''; position: absolute; top: -50%; right: -20%; width: 200px; height: 200px;
+            background: var(--accent); opacity: 0.1; border-radius: 50%; filter: blur(40px);
         }
     </style>
 </head>
@@ -367,30 +384,47 @@ app.get('/app', (req, res) => {
     <div class="container">
         <!-- HOME SCREEN -->
         <div id="screen-home" class="screen active">
-            <div class="card" style="background: var(--primary); color: white;">
-                <h2 style="margin-top: 0;">Привет! ✨</h2>
-                <p style="opacity: 0.9; font-size: 14px;">Готовы сделать ваш дом идеально чистым?</p>
-                <button class="btn btn-primary" onclick="showScreen('new-order')">✨ Заказать уборку</button>
+            <div class="hero-card">
+                <h2 style="margin-top: 0; font-size: 24px; font-weight: 800;">Чистота как искусство ✨</h2>
+                <p style="opacity: 0.8; font-size: 15px; line-height: 1.4; margin-bottom: 20px;">Забронируйте профессиональную уборку за 1 минуту.</p>
+                <button class="btn btn-primary" onclick="showScreen('new-order')" style="box-shadow: 0 4px 15px rgba(234, 179, 8, 0.4);">✨ Заказать уборку</button>
             </div>
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                <div class="card" onclick="showScreen('my-orders')" style="text-align: center;">
-                    <span style="font-size: 24px;">📦</span>
-                    <div style="font-weight: 600; margin-top: 8px;">Заказы</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                <div class="card" onclick="showScreen('my-orders')" style="text-align: center; padding: 20px;">
+                    <span style="font-size: 32px;">📦</span>
+                    <div style="font-weight: 700; margin-top: 10px; font-size: 14px;">Мои заказы</div>
                 </div>
-                <div class="card" onclick="showScreen('subscriptions')" style="text-align: center;">
-                    <span style="font-size: 24px;">💎</span>
-                    <div style="font-weight: 600; margin-top: 8px;">Абонементы</div>
+                <div class="card" onclick="showScreen('subscriptions')" style="text-align: center; padding: 20px;">
+                    <span style="font-size: 32px;">💎</span>
+                    <div style="font-weight: 700; margin-top: 10px; font-size: 14px;">Абонементы</div>
                 </div>
             </div>
 
             <div class="card">
-                <h3 style="margin-top: 0; font-size: 16px;">Наши услуги</h3>
-                <div style="font-size: 14px; color: var(--text-muted);">
-                    • Поддерживающая уборка<br>
-                    • Генеральная уборка<br>
-                    • После ремонта<br>
-                    • Мытье окон
+                <h3 style="margin-top: 0; font-size: 18px; font-weight: 700;">Наши услуги</h3>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; background: #eff6ff; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🧹</div>
+                        <div>
+                            <div style="font-weight: 600; font-size: 14px;">Поддерживающая</div>
+                            <div style="font-size: 12px; color: var(--text-muted);">Для регулярного уюта</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; background: #fef2f2; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🧼</div>
+                        <div>
+                            <div style="font-weight: 600; font-size: 14px;">Генеральная</div>
+                            <div style="font-size: 12px; color: var(--text-muted);">Идеальная чистота везде</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; background: #f0fdf4; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🏗</div>
+                        <div>
+                            <div style="font-weight: 600; font-size: 14px;">После ремонта</div>
+                            <div style="font-size: 12px; color: var(--text-muted);">Удалим строительную пыль</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -446,8 +480,9 @@ app.get('/app', (req, res) => {
                         <div class="input-group">
                             <label>Дата</label>
                             <input type="date" name="date" id="f-date" required onchange="checkLimits()">
+                            <div id="limit-info" style="margin-top: 8px;"></div>
+                            <div id="busy-dates-info" style="font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;"></div>
                         </div>
-                        <div id="limit-info"></div>
                         <div class="input-group">
                             <label>Время</label>
                             <select name="time">
@@ -528,7 +563,6 @@ app.get('/app', (req, res) => {
     <div class="tab-bar">
         <div class="tab active" id="tab-home" onclick="showScreen('home')"><i>🏠</i>Главная</div>
         <div class="tab" id="tab-orders" onclick="showScreen('my-orders')"><i>📦</i>Заказы</div>
-        <div class="tab" id="tab-new" onclick="showScreen('new-order')"><i>➕</i>Новый</div>
         <div class="tab" id="tab-sub" onclick="showScreen('subscriptions')"><i>💎</i>Абонементы</div>
     </div>
 
@@ -541,6 +575,12 @@ app.get('/app', (req, res) => {
         if (user) {
             document.getElementById('user-name').innerText = user.first_name;
         }
+
+        // Set min date to today
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('f-date').setAttribute('min', today);
+
+        loadAvailability();
 
         // Prefill from query
         const urlParams = new URLSearchParams(window.location.search);
@@ -596,28 +636,37 @@ app.get('/app', (req, res) => {
             const date = document.getElementById('f-date').value;
             if (!date) return;
             
-            const res = await fetch('/api/limits?date=' + date, {
+            const res = await fetch('/api/orders-count?date=' + date, {
                 headers: { 'x-tg-init-data': initData }
             });
             const data = await res.json();
             const info = document.getElementById('limit-info');
             const submitBtn = document.getElementById('submit-btn');
             
-            // Limit is 300 orders per day
-            // Note: In server.js we use area for limit, but user asked for "300 cleanings"
-            // Let's count orders instead of area for this specific request
-            const resOrders = await fetch('/api/orders-count?date=' + date, {
-                headers: { 'x-tg-init-data': initData }
-            });
-            const countData = await resOrders.json();
+            // Limit is 300 m2 per day
+            const limit = 300;
+            const bookedArea = data.area || 0;
             
-            if (countData.count >= 300) {
-                info.innerHTML = '<div class="limit-warning">❌ К сожалению, на этот день все места (300/300) заняты. Пожалуйста, выберите другую дату.</div>';
+            if (bookedArea >= limit) {
+                info.innerHTML = '<div class="limit-warning">❌ К сожалению, на этот день лимит (300 м²) исчерпан. Пожалуйста, выберите другую дату.</div>';
                 submitBtn.disabled = true;
             } else {
-                const left = 300 - countData.count;
-                info.innerHTML = '<div class="limit-ok">✅ Дата доступна! Осталось мест: ' + left + '</div>';
+                const left = limit - bookedArea;
+                info.innerHTML = '<div class="limit-ok">✅ Дата доступна! Свободно еще ' + left + ' м²</div>';
                 submitBtn.disabled = false;
+            }
+        }
+
+        async function loadAvailability() {
+            const res = await fetch('/api/availability', {
+                headers: { 'x-tg-init-data': initData }
+            });
+            const data = await res.json();
+            const info = document.getElementById('busy-dates-info');
+            if (data.fullyBooked && data.fullyBooked.length > 0) {
+                info.innerHTML = '📌 Полностью занятые даты: ' + data.fullyBooked.join(', ');
+            } else {
+                info.innerHTML = '✨ Все ближайшие даты свободны для записи';
             }
         }
 
