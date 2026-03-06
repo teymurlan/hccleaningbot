@@ -419,21 +419,35 @@ bot.on('message', async (msg) => {
 bot.on('photo', async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
-  if (!ADMIN_IDS.includes(userId.toString())) return;
   
-  if (db.users[userId]?.state === 'awaiting_photo') {
+  // Ensure we check admin status correctly
+  const isAdmin = ADMIN_IDS.includes(userId.toString());
+  if (!isAdmin) return;
+  
+  // Initialize user object if it doesn't exist
+  if (!db.users[userId]) db.users[userId] = { state: null };
+  
+  const user = db.users[userId];
+  if (user.state === 'awaiting_photo') {
     const photo = msg.photo[msg.photo.length - 1];
     const caption = msg.caption || '';
     
+    if (!db.gallery) db.gallery = [];
     db.gallery.push({
       id: Date.now().toString(),
       url: photo.file_id,
       caption: caption
     });
     
-    db.users[userId].state = null;
+    user.state = null;
+    
+    // Delete the user's photo message to keep chat clean
     try { await bot.deleteMessage(chatId, msg.message_id); } catch(e) {}
-    await renderScreen(chatId, `✅ Фото успешно добавлено в галерею!`, [[{ text: '🖼 Открыть галерею', callback_data: 'gallery_0' }], [{ text: '🏠 Меню', callback_data: 'menu' }]]);
+    
+    await renderScreen(chatId, `✅ <b>ФОТО УСПЕШНО ДОБАВЛЕНО</b>\n\nИзображение сохранено в галерею.`, [
+      [{ text: '🖼 Открыть галерею', callback_data: 'gallery_0' }],
+      [{ text: '🏠 В меню', callback_data: 'menu' }]
+    ]);
   }
 });
 
