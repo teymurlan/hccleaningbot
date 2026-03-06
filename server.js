@@ -266,113 +266,105 @@ app.get('/app', (req, res) => {
     <title>${BRAND_NAME} Mini App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Playfair+Display:ital,wght@0,900;1,900&display=swap');
+        
         :root {
-            --bg: #f3f4f6;
-            --card: #ffffff;
-            --text: #111827;
-            --text-muted: #6b7280;
-            --primary: ${BRAND_COLOR};
-            --accent: ${BRAND_ACCENT};
-            --radius: 16px;
+            --bg: #050505;
+            --card: #121212;
+            --text: #ffffff;
+            --text-muted: #888888;
+            --accent: #c5a059; /* Muted Gold */
+            --radius: 24px;
+            --glass: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.08);
+            --f-display: 'Playfair Display', serif;
         }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
         body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: 'Inter', -apple-system, sans-serif;
             background: var(--bg); color: var(--text); margin: 0; padding: 0;
-            overflow-x: hidden;
+            overflow-x: hidden; -webkit-font-smoothing: antialiased;
         }
         .header {
-            background: var(--primary); color: white; padding: 20px;
-            border-bottom-left-radius: 24px; border-bottom-right-radius: 24px;
-            position: sticky; top: 0; z-index: 100;
+            background: rgba(5, 5, 5, 0.8); backdrop-filter: blur(20px);
+            padding: 24px 20px; position: sticky; top: 0; z-index: 100;
             display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px solid var(--border);
         }
-        .header h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+        .header h1 { margin: 0; font-size: 16px; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); font-family: var(--f-display); }
         
-        .container { padding: 16px; max-width: 500px; margin: 0 auto; padding-bottom: 80px; }
+        .container { padding: 20px; max-width: 500px; margin: 0 auto; padding-bottom: 120px; }
         
-        .screen { display: none; animation: fadeIn 0.3s ease; }
+        .screen { display: none; animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
         .screen.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
 
         .card { 
-            background: var(--card); border-radius: var(--radius); padding: 16px;
-            margin-bottom: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-            border: 1px solid rgba(0,0,0,0.05);
-        }
-        .btn {
-            width: 100%; padding: 14px; border-radius: 12px; border: none;
-            font-size: 16px; font-weight: 600; cursor: pointer;
-            transition: opacity 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
-        }
-        .btn-primary { background: var(--accent); color: var(--primary); }
-        .btn-secondary { background: #e5e7eb; color: var(--text); }
-        .btn:active { opacity: 0.8; }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .input-group { margin-bottom: 16px; }
-        .input-group label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; color: var(--text-muted); }
-        .input-group input, .input-group select, .input-group textarea {
-            width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #d1d5db;
-            font-size: 16px; background: #f9fafb;
-        }
-        
-        .stepper { display: flex; gap: 8px; margin-bottom: 20px; }
-        .step { flex: 1; height: 4px; background: #e5e7eb; border-radius: 2px; }
-        .step.active { background: var(--accent); }
-
-        .order-item { 
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 12px 0; border-bottom: 1px solid #f3f4f6;
-        }
-        .order-item:last-child { border-bottom: none; }
-        .status-badge { 
-            padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; text-transform: uppercase;
-        }
-        .status-pending { background: #fef3c7; color: #92400e; }
-        .status-confirmed { background: #dcfce7; color: #166534; }
-        .status-done { background: #d1fae5; color: #065f46; }
-        .status-cancelled { background: #fee2e2; color: #991b1b; }
-
-        .tab-bar {
-            position: fixed; bottom: 0; left: 0; right: 0; background: white;
-            display: flex; border-top: 1px solid #e5e7eb; padding: 10px 0;
-            padding-bottom: calc(10px + var(--tg-safe-area-inset-bottom));
-            z-index: 100;
-        }
-        .tab { flex: 1; text-align: center; font-size: 10px; color: var(--text-muted); cursor: pointer; }
-        .tab.active { color: var(--primary); font-weight: 600; }
-        .tab i { display: block; font-size: 20px; margin-bottom: 2px; }
-
-        .price-tag { font-size: 24px; font-weight: 800; color: var(--primary); }
-        .limit-warning { background: #fee2e2; border: 1px solid #fecaca; color: #991b1b; padding: 12px; border-radius: 12px; font-size: 13px; margin-bottom: 16px; font-weight: 500; }
-        .limit-ok { background: #dcfce7; border: 1px solid #bbf7d0; color: #166534; padding: 12px; border-radius: 12px; font-size: 13px; margin-bottom: 16px; }
-        
-        /* Premium Calendar Styling */
-        input[type="date"] {
-            position: relative;
-            padding-left: 40px;
-            appearance: none;
-            -webkit-appearance: none;
-        }
-        input[type="date"]::before {
-            content: '📅';
-            position: absolute;
-            left: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-        }
-
-        .hero-card {
-            background: linear-gradient(135deg, var(--primary) 0%, #1f2937 100%);
-            color: white; border-radius: 24px; padding: 24px; margin-bottom: 20px;
-            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+            background: var(--card); border-radius: var(--radius); padding: 32px 24px;
+            margin-bottom: 24px; border: 1px solid var(--border);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
             position: relative; overflow: hidden;
         }
-        .hero-card::after {
-            content: ''; position: absolute; top: -50%; right: -20%; width: 200px; height: 200px;
-            background: var(--accent); opacity: 0.1; border-radius: 50%; filter: blur(40px);
+        .card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border), transparent);
         }
+
+        .btn {
+            width: 100%; padding: 22px; border-radius: 20px; border: none;
+            font-size: 13px; font-weight: 900; cursor: pointer;
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex; align-items: center; justify-content: center; gap: 12px;
+            text-transform: uppercase; letter-spacing: 2.5px;
+        }
+        .btn-primary { background: var(--accent); color: #000; }
+        .btn-secondary { background: var(--glass); color: var(--text); border: 1px solid var(--border); }
+        .btn:active { transform: scale(0.96); }
+        .btn:disabled { opacity: 0.2; cursor: not-allowed; }
+
+        .input-group { margin-bottom: 32px; }
+        .input-group label { display: block; font-size: 10px; font-weight: 900; margin-bottom: 14px; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; }
+        .input-group input, .input-group select, .input-group textarea {
+            width: 100%; padding: 20px; border-radius: 18px; border: 1px solid var(--border);
+            font-size: 16px; background: var(--glass); color: white;
+            transition: all 0.4s;
+        }
+        .input-group input:focus { border-color: var(--accent); background: rgba(255, 255, 255, 0.06); box-shadow: 0 0 20px rgba(197, 160, 89, 0.1); }
+        
+        .stepper { display: flex; gap: 14px; margin-bottom: 40px; padding: 0 10px; }
+        .step { flex: 1; height: 2px; background: var(--border); border-radius: 1px; transition: all 0.5s; }
+        .step.active { background: var(--accent); box-shadow: 0 0 20px var(--accent); transform: scaleY(2); }
+
+        .status-badge { 
+            padding: 10px 16px; border-radius: 12px; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;
+        }
+        .status-pending { background: rgba(234, 179, 8, 0.05); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.1); }
+        .status-confirmed { background: rgba(59, 130, 246, 0.05); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.1); }
+        .status-done { background: rgba(34, 197, 94, 0.05); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.1); }
+        .status-cancelled { background: rgba(239, 68, 68, 0.05); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.1); }
+
+        .tab-bar {
+            position: fixed; bottom: 0; left: 0; right: 0; background: rgba(5, 5, 5, 0.85);
+            backdrop-filter: blur(30px); display: flex; border-top: 1px solid var(--border);
+            padding: 16px 0; padding-bottom: calc(16px + var(--tg-safe-area-inset-bottom));
+            z-index: 100;
+        }
+        .tab { flex: 1; text-align: center; font-size: 10px; color: var(--text-muted); cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+        .tab.active { color: var(--accent); }
+        .tab i { display: block; font-size: 24px; margin-bottom: 6px; }
+
+        .price-tag { font-size: 36px; font-weight: 900; color: var(--accent); letter-spacing: -1.5px; }
+        .limit-warning { background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.1); color: #ef4444; padding: 20px; border-radius: 20px; font-size: 13px; margin-bottom: 24px; font-weight: 700; text-align: center; }
+        .limit-ok { background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.1); color: #22c55e; padding: 20px; border-radius: 20px; font-size: 13px; margin-bottom: 24px; font-weight: 700; text-align: center; }
+        
+        .hero-card {
+            background: linear-gradient(180deg, #121212 0%, #050505 100%);
+            color: white; border-radius: 32px; padding: 40px 30px; margin-bottom: 30px;
+            border: 1px solid var(--border); position: relative; overflow: hidden;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.6); text-align: center;
+        }
+        .hero-card h2 { font-size: 28px; font-weight: 900; letter-spacing: -1px; margin-bottom: 12px; }
+        .hero-card p { font-size: 16px; color: var(--text-muted); margin-bottom: 30px; }
     </style>
 </head>
 <body>
