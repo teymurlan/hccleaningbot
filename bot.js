@@ -25,8 +25,18 @@ if (!WEBAPP_URL || WEBAPP_URL.includes('.internal')) {
 }
 const PHONE_PRETTY = process.env.PHONE_PRETTY || '+7 (999) 210-79-77';
 const CITY_LABEL = process.env.CITY_LABEL || 'Санкт-Петербург';
+const NOTIFICATION_GROUP_ID = process.env.NOTIFICATION_GROUP_ID;
 
 // --- HELPERS ---
+
+async function notifyGroup(text) {
+  if (!NOTIFICATION_GROUP_ID) return;
+  try {
+    await bot.sendMessage(NOTIFICATION_GROUP_ID, text, { parse_mode: 'HTML' });
+  } catch (e) {
+    console.error('Group notification failed:', e.message);
+  }
+}
 
 const lastMessages = {}; // chat_id -> message_id
 
@@ -75,13 +85,8 @@ function tabBar(isAdmin = false) {
   const tabs = [
     [
       { text: '🏠 Меню', callback_data: 'menu' },
-      { text: '📦 Заказы', callback_data: 'my_orders' },
-      { text: '👤 Профиль', callback_data: 'profile' }
-    ],
-    [
-      { text: '🖼 Галерея', callback_data: 'gallery_0' },
-      { text: '✅ Чек-лист', callback_data: 'checklist' },
-      { text: '➕ Заказать', web_app: { url: WEBAPP_URL } }
+      { text: '👤 Кабинет', callback_data: 'cabinet' },
+      { text: '🖼 Галерея', callback_data: 'gallery_0' }
     ]
   ];
   if (isAdmin) {
@@ -114,7 +119,7 @@ async function showMenu(chatId, userId) {
     ],
     [
       { text: '🖼 Галерея работ', callback_data: 'gallery_0' },
-      { text: '📍 Районы', callback_data: 'areas' }
+      { text: '✅ Чек-лист', callback_data: 'checklist' }
     ],
     [
       { text: '💎 Абонементы', callback_data: 'subscriptions' },
@@ -138,27 +143,34 @@ async function showPrice(chatId, userId) {
   await renderScreen(chatId, text, keyboard);
 }
 
-async function showProfile(chatId, userId) {
+async function showCabinet(chatId, userId) {
   const user = db.users[userId] || { name: 'Не указано', phone: 'Не указано', addresses: [] };
+  const orders = db.orders.filter(o => o.user_id === userId).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5);
   const isAdmin = ADMIN_IDS.includes(userId.toString());
   
-  let text = `<b>👤 Профиль</b>\n\n`;
-  text += `👤 Имя: ${user.name || '—'}\n`;
-  text += `📞 Тел: ${user.phone || '—'}\n\n`;
+  let text = `<b>👤 ЛИЧНЫЙ КАБИНЕТ</b>\n\n`;
+  text += `👤 Имя: <b>${user.name || '—'}</b>\n`;
+  text += `📞 Тел: <b>${user.phone || '—'}</b>\n\n`;
   
-  if (user.addresses.length > 0) {
-    text += `📍 <b>Последние адреса:</b>\n`;
-    user.addresses.forEach((a, i) => text += `${i+1}. ${a}\n`);
+  if (orders.length > 0) {
+    text += `<b>📦 Последние заказы:</b>\n`;
+    orders.forEach(o => {
+      text += `${getStatusEmoji(o.status)} #${o.id} — ${o.date} (${o.estimated_price} ₽)\n`;
+    });
   } else {
-    text += `📍 Адреса пока не сохранены.\n`;
+    text += `📦 У вас пока нет заказов.\n`;
   }
 
-  const keyboard = [
-    [{ text: '📦 Мои заказы', callback_data: 'my_orders' }],
-    [{ text: '✍️ Написать менеджеру', url: `https://t.me/${process.env.TG_USERNAME}` }],
-    [{ text: '📞 Позвонить', callback_data: 'call_request' }],
-    ...tabBar(isAdmin)
-  ];
+  const keyboard = [];
+  if (orders.length > 0) {
+    orders.forEach(o => {
+      keyboard.push([{ text: `🔍 Детали #${o.id}`, callback_data: `view_${o.id}` }]);
+    });
+  }
+  
+  keyboard.push([{ text: '✨ ЗАКАЗАТЬ УБОРКУ', web_app: { url: WEBAPP_URL } }]);
+  keyboard.push([{ text: '🔙 Назад в меню', callback_data: 'menu' }]);
+  keyboard.push(...tabBar(isAdmin));
 
   await renderScreen(chatId, text, keyboard);
 }
@@ -275,8 +287,10 @@ async function showGallery(chatId, index, userId) {
 
 async function showAdminDashboard(chatId) {
   const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   
+  const todayOrders = db.orders.filter(o => o.date === todayStr && o.status !== 'cancelled');
   const lastWeekOrders = db.orders.filter(o => new Date(o.created_at) > weekAgo);
   const revenue = lastWeekOrders.filter(o => o.status === 'done').reduce((s, o) => s + o.estimated_price, 0);
   const pending = db.orders.filter(o => o.status === 'pending').length;
@@ -286,29 +300,34 @@ async function showAdminDashboard(chatId) {
   lastWeekOrders.forEach(o => services[o.service] = (services[o.service] || 0) + 1);
   const topService = Object.entries(services).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
 
-  let text = `<b>📈 ПАНЕЛЬ УПРАВЛЕНИЯ</b>\n\n`;
-  text += `⏳ Ожидают: <b>${pending}</b>\n`;
-  text += `💰 Выручка (7д): <b>${revenue} ₽</b>\n`;
-  text += `🔥 Топ услуга: <b>${topService}</b>\n`;
-  text += `📊 Заказов (7д): <b>${lastWeekOrders.length}</b>\n\n`;
+  let text = `<b>📈 ПАНЕЛЬ УПРАВЛЕНИЯ (CEO)</b>\n\n`;
+  text += `📅 <b>Сегодня (${todayStr}):</b>\n`;
+  text += `• Заказов: <b>${todayOrders.length}</b>\n`;
+  text += `• Ожидают: <b>${pending}</b> ⏳\n\n`;
+  
+  text += `📊 <b>За последние 7 дней:</b>\n`;
+  text += `• Новых заявок: <b>${lastWeekOrders.length}</b>\n`;
+  text += `• Выручка: <b>${revenue} ₽</b> 💰\n`;
+  text += `• Топ услуга: <b>${topService}</b> 🔥\n\n`;
+  
   text += `<b>Быстрый поиск:</b> <code>/find имя_или_номер</code>`;
 
   const keyboard = [
     [
-      { text: '⏳ Новые заявки', callback_data: 'admin_queue' },
+      { text: '⏳ Очередь', callback_data: 'admin_queue' },
       { text: '📅 На сегодня', callback_data: 'admin_today' }
     ],
     [
       { text: '🕒 На неделю', callback_data: 'admin_upcoming' },
-      { text: '📋 Все (30)', callback_data: 'admin_all' }
+      { text: '📋 Все заказы', callback_data: 'admin_all' }
     ],
     [
-      { text: '🧼 Контроль (QC)', callback_data: 'admin_qc_list' },
+      { text: '🧼 Контроль QC', callback_data: 'admin_qc_list' },
       { text: '📸 Галерея', callback_data: 'gallery_0' }
     ],
     [
       { text: '📤 Экспорт CSV', callback_data: 'admin_export' },
-      { text: '🏠 В меню', callback_data: 'menu' }
+      { text: '🏠 Меню', callback_data: 'menu' }
     ]
   ];
 
@@ -375,8 +394,7 @@ async function showAdminOrderDetails(chatId, orderId) {
 bot.setMyCommands([
   { command: 'start', description: 'Запустить бота / Главное меню' },
   { command: 'menu', description: 'Главное меню' },
-  { command: 'profile', description: 'Мой профиль' },
-  { command: 'orders', description: 'Мои заказы' },
+  { command: 'cabinet', description: 'Личный кабинет' },
   { command: 'calc', description: 'Калькулятор стоимости' },
   { command: 'price', description: 'Прайс-лист' }
 ]).catch(err => console.error('Error setting commands:', err));
@@ -396,9 +414,8 @@ bot.on('message', async (msg) => {
   if (text.startsWith('/')) {
     const cmd = text.split(' ')[0].toLowerCase();
     if (cmd === '/start' || cmd === '/menu') return showMenu(chatId, userId);
-    if (cmd === '/profile') return showProfile(chatId, userId);
-    if (cmd === '/orders') return showMyOrders(chatId, userId);
-    if (cmd === '/calc') return showPrice(chatId, userId); // Or specific calc screen
+    if (cmd === '/cabinet' || cmd === '/profile' || cmd === '/orders') return showCabinet(chatId, userId);
+    if (cmd === '/calc') return showPrice(chatId, userId);
     if (cmd === '/price') return showPrice(chatId, userId);
     
     // Other commands like /find, /msg, /move are handled by bot.onText
@@ -482,8 +499,7 @@ bot.on('callback_query', async (query) => {
 
   if (data === 'menu') showMenu(chatId, userId);
   else if (data === 'price') showPrice(chatId, userId);
-  else if (data === 'profile') showProfile(chatId, userId);
-  else if (data === 'my_orders') showMyOrders(chatId, userId);
+  else if (data === 'cabinet') showCabinet(chatId, userId);
   else if (data.startsWith('gallery_')) {
     const index = parseInt(data.split('_')[1]);
     showGallery(chatId, index, userId);
@@ -583,7 +599,10 @@ bot.on('callback_query', async (query) => {
     if (order) {
       order.status = 'cancelled';
       await renderScreen(chatId, `🔴 Заказ #${orderId} отменен.`, tabBar(isAdmin));
-      // Optionally show details again after a short delay or just stay on confirmation
+      
+      // Notify Group
+      await notifyGroup(`<b>🔴 ЗАКАЗ ОТМЕНЕН КЛИЕНТОМ #${orderId}</b>\n\n👤 ${order.name}\n📞 ${order.phone}\n🧼 ${order.service}\n📅 ${order.date} ${order.time}`);
+      
       setTimeout(() => showOrderDetails(chatId, orderId, userId), 1500);
     }
   }
@@ -630,6 +649,12 @@ bot.on('callback_query', async (query) => {
         order.status = newStatus;
         // Notify user via single screen
         await renderScreen(order.chat_id, `${getStatusEmoji(newStatus)} Статус вашего заказа #${orderId} изменен на: <b>${newStatus.toUpperCase()}</b>`, tabBar(false));
+        
+        // Notify Group if cancelled
+        if (newStatus === 'cancelled') {
+          await notifyGroup(`<b>🔴 ЗАКАЗ ОТМЕНЕН АДМИНИСТРАТОРОМ #${orderId}</b>\n\n👤 ${order.name}\n📞 ${order.phone}\n🧼 ${order.service}\n📅 ${order.date} ${order.time}`);
+        }
+        
         showAdminOrderDetails(chatId, orderId);
       }
     }
@@ -682,6 +707,10 @@ setInterval(() => {
         [{ text: '🏠 Главная', callback_data: 'menu' }]
       ];
       await renderScreen(o.chat_id, text, keyboard);
+
+      // Notify Group
+      const groupText = `<b>🆕 НОВЫЙ ЗАКАЗ #${o.id}</b>\n\n👤 ${o.name}\n📞 ${o.phone}\n📍 ${o.address}\n📅 ${o.date} ${o.time}\n🧼 ${o.service} | ${o.area} м²\n💰 ${o.estimated_price} ₽`;
+      await notifyGroup(groupText);
 
       // Notify Admins
       ADMIN_IDS.forEach(async (adminId) => {
